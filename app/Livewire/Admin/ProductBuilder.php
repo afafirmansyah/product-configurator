@@ -33,7 +33,7 @@ class ProductBuilder extends Component
 
     public string $features = '';
 
-    public float $base_price = 0;
+    public string $base_price = '0';
 
     public string $currency = 'EUR';
 
@@ -71,7 +71,7 @@ class ProductBuilder extends Component
         $this->long_description = $this->product->long_description ?? '';
         $this->applications = $this->product->applications ?? '';
         $this->features = $this->product->features ?? '';
-        $this->base_price = $this->product->base_price;
+        $this->base_price = (string) $this->product->base_price;
         $this->currency = $this->product->currency;
         $this->status = $this->product->status;
         $this->version = $this->product->version;

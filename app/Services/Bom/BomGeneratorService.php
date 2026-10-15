@@ -5,6 +5,7 @@ namespace App\Services\Bom;
 use App\Models\ConfigurationSession;
 use App\Models\Product;
 use App\Services\Rules\ConditionEvaluator;
+use App\Support\Money;
 
 class BomGeneratorService
 {
@@ -33,9 +34,15 @@ class BomGeneratorService
                 $component = $item->component;
 
                 if (isset($bom[$componentId])) {
-                    $bom[$componentId]['quantity'] += (float) $item->quantity;
-                    $bom[$componentId]['total_price'] = $bom[$componentId]['quantity'] * $bom[$componentId]['unit_price'];
+                    $quantity = (float) $bom[$componentId]['quantity'] + (float) $item->quantity;
+                    $unitPriceCents = Money::toCents($bom[$componentId]['unit_price']);
+
+                    $bom[$componentId]['quantity'] = $quantity;
+                    $bom[$componentId]['total_price'] = Money::fromCents(Money::mulCents($unitPriceCents, $quantity));
                 } else {
+                    $unitPriceCents = Money::toCents($component->sales_price);
+                    $totalPriceCents = Money::mulCents($unitPriceCents, (float) $item->quantity);
+
                     $bom[$componentId] = [
                         'item_no' => str_pad($itemNo++, 2, '0', STR_PAD_LEFT),
                         'component_id' => $componentId,
@@ -48,9 +55,9 @@ class BomGeneratorService
                         'manufacturer_part_no' => $component->manufacturer_part_number,
                         'quantity' => (float) $item->quantity,
                         'unit' => 'EA',
-                        'unit_price' => (float) $component->sales_price,
-                        'cost' => (float) $component->cost,
-                        'total_price' => (float) $item->quantity * (float) $component->sales_price,
+                        'unit_price' => Money::fromCents($unitPriceCents),
+                        'cost' => Money::fromCents(Money::toCents($component->cost)),
+                        'total_price' => Money::fromCents($totalPriceCents),
                         'currency' => $component->currency ?? 'EUR',
                         'is_mandatory' => (bool) $item->is_mandatory,
                         'lead_time' => null,
