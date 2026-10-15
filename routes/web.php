@@ -21,6 +21,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Configurator\CatalogController;
 use App\Http\Controllers\Configurator\QuotationController;
+use App\Http\Controllers\Configurator\QuoteExportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sales\BomExportController;
 use App\Http\Controllers\Sales\WorkspaceController;
@@ -74,6 +75,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/configuration/{ulid}', [CatalogController::class, 'show'])->name('show');
         Route::get('/my-configurations', fn () => redirect()->route('sales.configurations'))->name('my-configurations');
         Route::post('/configuration/{ulid}/quotation', [QuotationController::class, 'store'])->name('quotation.store');
+        Route::get('/quotation/{quotation:ulid}/pdf', [QuoteExportController::class, 'pdf'])->name('quotation.pdf');
     });
 });
 
