@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BomRule extends Model
@@ -27,17 +29,17 @@ class BomRule extends Model
         'effective_to' => 'date',
     ];
 
-    public function product()
+    public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    public function conditions()
+    public function conditions(): HasMany
     {
         return $this->hasMany(BomRuleCondition::class);
     }
 
-    public function items()
+    public function items(): HasMany
     {
         return $this->hasMany(BomRuleItem::class);
     }

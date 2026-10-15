@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BomRuleCondition extends Model
 {
@@ -18,12 +19,12 @@ class BomRuleCondition extends Model
         'group',
     ];
 
-    public function bomRule()
+    public function bomRule(): BelongsTo
     {
         return $this->belongsTo(BomRule::class);
     }
 
-    public function attribute()
+    public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
     }

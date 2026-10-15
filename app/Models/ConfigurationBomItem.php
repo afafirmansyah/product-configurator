@@ -3,11 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ConfigurationBomItem extends Model
 {
     protected $fillable = [
-        'configuration_session_id', 'component_id', 'quantity', 'unit_price', 'is_mandatory',
+        'configuration_session_id',
+        'component_id',
+        'quantity',
+        'unit_price',
+        'is_mandatory',
     ];
 
     protected $casts = [
@@ -16,12 +21,12 @@ class ConfigurationBomItem extends Model
         'is_mandatory' => 'boolean',
     ];
 
-    public function session()
+    public function session(): BelongsTo
     {
         return $this->belongsTo(ConfigurationSession::class, 'configuration_session_id');
     }
 
-    public function component()
+    public function component(): BelongsTo
     {
         return $this->belongsTo(Component::class);
     }

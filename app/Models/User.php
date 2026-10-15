@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -12,7 +13,13 @@ class User extends Authenticatable
     use HasFactory, HasRoles, Notifiable;
 
     protected $fillable = [
-        'name', 'email', 'password', 'company', 'phone', 'country', 'is_active',
+        'name',
+        'email',
+        'password',
+        'company',
+        'phone',
+        'country',
+        'is_active',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -26,12 +33,12 @@ class User extends Authenticatable
         ];
     }
 
-    public function configurationSessions()
+    public function configurationSessions(): HasMany
     {
         return $this->hasMany(ConfigurationSession::class);
     }
 
-    public function quotationRequests()
+    public function quotationRequests(): HasMany
     {
         return $this->hasMany(QuotationRequest::class);
     }

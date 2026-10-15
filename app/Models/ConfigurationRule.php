@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ConfigurationRule extends Model
@@ -29,17 +31,17 @@ class ConfigurationRule extends Model
         'effective_to' => 'date',
     ];
 
-    public function product()
+    public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    public function conditions()
+    public function conditions(): HasMany
     {
         return $this->hasMany(RuleCondition::class)->orderBy('sort_order');
     }
 
-    public function actions()
+    public function actions(): HasMany
     {
         return $this->hasMany(RuleAction::class)->orderBy('sort_order');
     }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class QuotationRequest extends Model
@@ -32,12 +33,12 @@ class QuotationRequest extends Model
         'required_delivery_date' => 'date',
     ];
 
-    public function configuration()
+    public function configuration(): BelongsTo
     {
         return $this->belongsTo(ConfigurationSession::class, 'configuration_session_id');
     }
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

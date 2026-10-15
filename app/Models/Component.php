@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Component extends Model
@@ -35,7 +36,7 @@ class Component extends Model
         'technical_specs' => 'array',
     ];
 
-    public function category()
+    public function category(): BelongsTo
     {
         return $this->belongsTo(ComponentCategory::class, 'component_category_id');
     }

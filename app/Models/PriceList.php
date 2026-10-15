@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\Pricing\PricingService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 
@@ -35,12 +36,12 @@ class PriceList extends Model
         'valid_to' => 'date',
     ];
 
-    public function productPrices()
+    public function productPrices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);
     }
 
-    public function optionPrices()
+    public function optionPrices(): HasMany
     {
         return $this->hasMany(OptionPrice::class);
     }

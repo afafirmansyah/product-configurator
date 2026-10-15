@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AttributeOption extends Model
@@ -30,12 +32,12 @@ class AttributeOption extends Model
         'is_active' => 'boolean',
     ];
 
-    public function attribute()
+    public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
     }
 
-    public function optionPrices()
+    public function optionPrices(): HasMany
     {
         return $this->hasMany(OptionPrice::class, 'attribute_option_id');
     }

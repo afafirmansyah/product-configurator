@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RuleAction extends Model
 {
@@ -18,7 +19,7 @@ class RuleAction extends Model
         'sort_order',
     ];
 
-    public function rule()
+    public function rule(): BelongsTo
     {
         return $this->belongsTo(ConfigurationRule::class, 'configuration_rule_id');
     }

@@ -2,8 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -40,17 +46,17 @@ class Product extends Model
         'expiry_date' => 'date',
     ];
 
-    public function productPrices()
+    public function productPrices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);
     }
 
-    public function family()
+    public function family(): BelongsTo
     {
         return $this->belongsTo(ProductFamily::class, 'product_family_id');
     }
 
-    public function category()
+    public function category(): HasOneThrough
     {
         return $this->hasOneThrough(
             ProductCategory::class,
@@ -62,34 +68,34 @@ class Product extends Model
         );
     }
 
-    public function productAttributes()
+    public function productAttributes(): HasMany
     {
         return $this->hasMany(ProductAttribute::class)->orderBy('sort_order');
     }
 
-    public function attributes()
+    public function attributes(): BelongsToMany
     {
         return $this->belongsToMany(Attribute::class, 'product_attributes')
             ->withPivot(['is_required', 'default_value', 'is_visible', 'help_text', 'sort_order', 'step_name'])
             ->orderByPivot('sort_order');
     }
 
-    public function configurationRules()
+    public function configurationRules(): HasMany
     {
         return $this->hasMany(ConfigurationRule::class)->where('is_active', true)->orderBy('priority');
     }
 
-    public function bomRules()
+    public function bomRules(): HasMany
     {
         return $this->hasMany(BomRule::class)->where('is_active', true)->orderBy('sort_order');
     }
 
-    public function partNumberPattern()
+    public function partNumberPattern(): HasOne
     {
         return $this->hasOne(PartNumberPattern::class)->where('is_active', true);
     }
 
-    public function compatibilityRules()
+    public function compatibilityRules(): HasMany
     {
         return $this->hasMany(CompatibilityRule::class)->where('is_active', true);
     }
@@ -99,7 +105,11 @@ class Product extends Model
         return $this->status === 'published';
     }
 
-    public function scopePublished($query)
+    /**
+     * @param  Builder<Product>  $query
+     * @return Builder<Product>
+     */
+    public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', 'published');
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class ProductAttribute extends Pivot
@@ -11,8 +12,14 @@ class ProductAttribute extends Pivot
     public $incrementing = true;
 
     protected $fillable = [
-        'product_id', 'attribute_id', 'is_required', 'default_value',
-        'is_visible', 'help_text', 'sort_order', 'step_name',
+        'product_id',
+        'attribute_id',
+        'is_required',
+        'default_value',
+        'is_visible',
+        'help_text',
+        'sort_order',
+        'step_name',
     ];
 
     protected $casts = [
@@ -20,12 +27,12 @@ class ProductAttribute extends Pivot
         'is_visible' => 'boolean',
     ];
 
-    public function product()
+    public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    public function attribute()
+    public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
     }

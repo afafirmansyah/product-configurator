@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OptionPrice extends Model
 {
@@ -17,12 +18,12 @@ class OptionPrice extends Model
         'valid_to' => 'date',
     ];
 
-    public function option()
+    public function option(): BelongsTo
     {
         return $this->belongsTo(AttributeOption::class, 'attribute_option_id');
     }
 
-    public function priceList()
+    public function priceList(): BelongsTo
     {
         return $this->belongsTo(PriceList::class);
     }
