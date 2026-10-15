@@ -25,7 +25,7 @@ class BomExportReady extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['mail', 'database'];
+        return ['mail'];
     }
 
     /**
@@ -51,19 +51,5 @@ class BomExportReady extends Notification implements ShouldQueue
             ->line('The export you requested for configuration '.$this->configurationNumber.' is ready to download.')
             ->action('Download '.$this->filename, $this->downloadUrl())
             ->line('This download link expires in 24 hours.');
-    }
-
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
-    public function toArray(object $notifiable): array
-    {
-        return [
-            'configuration_number' => $this->configurationNumber,
-            'filename' => $this->filename,
-            'download_url' => $this->downloadUrl(),
-        ];
     }
 }

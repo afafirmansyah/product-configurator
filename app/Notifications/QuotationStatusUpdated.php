@@ -24,7 +24,7 @@ class QuotationStatusUpdated extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['mail', 'database'];
+        return ['mail'];
     }
 
     /**
@@ -42,20 +42,5 @@ class QuotationStatusUpdated extends Notification implements ShouldQueue
             ->line('Previous status: '.ucfirst($this->previousStatus))
             ->line('New status: '.ucfirst($quotation->status))
             ->action('View configuration', route('configurator.show', $quotation->configuration?->ulid));
-    }
-
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
-    public function toArray(object $notifiable): array
-    {
-        return [
-            'quotation_id' => $this->quotation->id,
-            'reference_number' => $this->quotation->reference_number,
-            'previous_status' => $this->previousStatus,
-            'status' => $this->quotation->status,
-        ];
     }
 }

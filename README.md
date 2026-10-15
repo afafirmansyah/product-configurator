@@ -7,7 +7,7 @@ A web-based product configuration system built with Laravel 13, Livewire 4, and 
 - **PHP** 8.4 / **Laravel** 13
 - **Livewire** 4 (reactive UI without writing JavaScript)
 - **Tailwind CSS** 4 (utility-first styling via Vite)
-- **MySQL 8+** for development and production; **SQLite** is the zero-config fallback and is used by the automated test suite
+- **SQLite** is the zero-config default for local development and the automated test suite; **MySQL 8+** or **PostgreSQL** is recommended for production
 - **Spatie Laravel Permission** (role-based access control)
 - **DomPDF** (PDF export)
 - **PhpSpreadsheet** (Excel export)
@@ -34,7 +34,7 @@ A web-based product configuration system built with Laravel 13, Livewire 4, and 
 - Real-time rule evaluation (visibility, required fields, warnings)
 - Live price calculation
 - Configuration summary and part number generation
-- Quotation request submission with lifecycle email/in-app notifications
+- Quotation request submission with lifecycle email notifications
 - Quotation PDF export and queued BOM export (PDF/Excel) with signed download links
 
 ## Requirements
@@ -42,7 +42,9 @@ A web-based product configuration system built with Laravel 13, Livewire 4, and 
 - PHP >= 8.4 (see the `php` constraint in `composer.json`)
 - Composer
 - Node.js >= 18
-- MySQL 8+ (or SQLite for a zero-config local/test setup)
+- SQLite for a zero-config local/test setup (the default), or MySQL 8+ / PostgreSQL for production
+
+All `composer`, `artisan`, and `test` commands must run under PHP 8.4.
 
 ## Installation
 
@@ -84,22 +86,35 @@ Key variables to configure in `.env`:
 ```env
 APP_URL=http://product-configurator.test
 
-# MySQL (development/production)
+# SQLite (default for local development and tests)
+DB_CONNECTION=sqlite
+```
+
+For SQLite, create the database file with `touch database/database.sqlite` (or
+create an empty `database/database.sqlite`) and run `php artisan migrate --seed`.
+
+To switch to MySQL or PostgreSQL for production, set the connection and
+credentials instead:
+
+```env
+# MySQL
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=product_configurator
 DB_USERNAME=root
 DB_PASSWORD=
-```
 
-To run against SQLite instead (the framework default fallback, and what the test
-suite uses), set `DB_CONNECTION=sqlite` and create `database/database.sqlite`.
+# PostgreSQL
+# DB_CONNECTION=pgsql
+# DB_PORT=5432
+```
 
 Asynchronous features — queued BOM exports and quotation lifecycle
 notifications — require a running queue worker (`php artisan queue:work`, started
-automatically by `composer run dev`). In local development set `MAIL_MAILER=log`
-so notification emails are written to the log instead of being sent.
+automatically by `composer run dev`). The development default is `MAIL_MAILER=log`,
+so notification emails are written to the log instead of being sent. Configuring a
+production SMTP mailer (host, port, credentials, encryption) is left to the user.
 
 ## Testing
 
