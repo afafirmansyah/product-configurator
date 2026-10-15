@@ -3,11 +3,13 @@
 namespace App\Services\Configurator;
 
 use App\DTOs\ConfigurationResult;
+use App\Models\Component;
 use App\Models\Product;
 use App\Services\Bom\BomGeneratorService;
 use App\Services\PartNumber\PartNumberService;
 use App\Services\Pricing\PricingService;
 use App\Services\Rules\RuleEngineService;
+use App\Support\Money;
 
 class ConfiguratorService
 {
@@ -35,19 +37,36 @@ class ConfiguratorService
         // 2. Evaluate rules
         $ruleEffects = $this->ruleEngine->evaluate($product, $selections, $debug);
 
+        // 2a. Apply forced values onto the selections BEFORE pricing/BOM/part-number/validation
+        //     so downstream consumers see rule-set values (rule-set overrides user input).
+        foreach ($ruleEffects['set_values'] as $attributeId => $forcedValue) {
+            $selections[$attributeId] = $forcedValue;
+        }
+
         // 3. Evaluate compatibility
         $compatibilityDisabled = $this->compatibility->getDisabledOptions($product, $selections);
 
-        // Merge disabled options from rules and compatibility
+        // Merge disabled options from rules and compatibility. Use the union
+        // operator so numeric option-id keys are preserved (array_merge would
+        // renumber them). Rule reasons take precedence over compatibility ones.
         $disabledOptions = $compatibilityDisabled;
         foreach ($ruleEffects['disabled_options'] as $attrId => $options) {
-            $disabledOptions[$attrId] = array_merge($disabledOptions[$attrId] ?? [], $options);
+            $disabledOptions[$attrId] = $options + ($disabledOptions[$attrId] ?? []);
         }
 
-        // 4. Determine visible/required attributes
-        $allAttributeIds = $product->productAttributes->pluck('attribute_id')->toArray();
+        // 4. Determine visible/required attributes.
+        //    Default visibility comes from the product_attributes.is_visible pivot
+        //    (defaults to true). Hide rules remove, show rules add back; show wins
+        //    over hide for the same attribute.
+        $defaultVisibleIds = $product->productAttributes
+            ->where('is_visible', true)
+            ->pluck('attribute_id')
+            ->toArray();
         $hiddenIds = $ruleEffects['hidden_attributes'];
-        $visibleIds = array_values(array_diff($allAttributeIds, $hiddenIds));
+        $visibleIds = array_values(array_unique(array_merge(
+            array_diff($defaultVisibleIds, $hiddenIds),
+            $ruleEffects['visible_attributes'],
+        )));
 
         $requiredIds = array_unique(array_merge(
             $product->productAttributes->where('is_required', true)->pluck('attribute_id')->toArray(),
@@ -55,14 +74,22 @@ class ConfiguratorService
         ));
         $requiredIds = array_values(array_diff($requiredIds, $ruleEffects['optional_attributes']));
 
-        // 5. Generate BOM
+        // 5. Generate BOM, then apply rule-driven component additions/removals.
         $bomItems = $this->bom->generate($product, $selections);
+        $bomItems = $this->applyComponentEffects($bomItems, $ruleEffects);
 
-        // 6. Calculate pricing
+        // 6. Calculate pricing, applying any rule-driven total override (in cents).
         $pricingResult = $this->pricing->calculate($product, $selections);
 
-        // 7. Generate part number
-        $configCode = $this->partNumber->generate($product, $selections);
+        if ($ruleEffects['set_price'] !== null) {
+            $overrideTotal = Money::fromCents(Money::toCents($ruleEffects['set_price']));
+            $pricingResult['total'] = $overrideTotal;
+        }
+
+        // 7. Generate part number, honoring a rule-driven override when present.
+        $configCode = $ruleEffects['set_part_number'] !== null && $ruleEffects['set_part_number'] !== ''
+            ? (string) $ruleEffects['set_part_number']
+            : $this->partNumber->generate($product, $selections);
 
         // 8. Validate
         $validation = $this->validate($product, $selections, $visibleIds, $requiredIds, $disabledOptions);
@@ -119,6 +146,66 @@ class ConfiguratorService
             'errors' => $errors,
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Apply rule-driven BOM mutations: drop removed components by id, then append
+     * added components as synthetic rows in the rich BOM shape.
+     *
+     * @param  array<int, array<string, mixed>>  $bomItems
+     * @param  array<string, mixed>  $ruleEffects
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyComponentEffects(array $bomItems, array $ruleEffects): array
+    {
+        $removedIds = $ruleEffects['removed_components'];
+
+        if (! empty($removedIds)) {
+            $bomItems = array_values(array_filter(
+                $bomItems,
+                fn (array $item): bool => ! in_array((int) $item['component_id'], $removedIds, true),
+            ));
+        }
+
+        if (empty($ruleEffects['added_components'])) {
+            return $bomItems;
+        }
+
+        $itemNo = count($bomItems) + 1;
+
+        foreach ($ruleEffects['added_components'] as $added) {
+            $component = Component::with('category')->find($added['component_id']);
+
+            if (! $component) {
+                continue;
+            }
+
+            $quantity = (float) $added['quantity'];
+            $unitPriceCents = Money::toCents($component->sales_price);
+
+            $bomItems[] = [
+                'item_no' => str_pad((string) $itemNo++, 2, '0', STR_PAD_LEFT),
+                'component_id' => $component->id,
+                'part_number' => $component->internal_part_number ?? $component->code,
+                'sales_part_number' => $component->sales_part_number,
+                'description' => $component->name,
+                'long_description' => $component->description,
+                'type' => $component->category?->name ?? 'Component',
+                'manufacturer' => $component->manufacturer,
+                'manufacturer_part_no' => $component->manufacturer_part_number,
+                'quantity' => $quantity,
+                'unit' => 'EA',
+                'unit_price' => Money::fromCents($unitPriceCents),
+                'cost' => Money::fromCents(Money::toCents($component->cost)),
+                'total_price' => Money::fromCents(Money::mulCents($unitPriceCents, $quantity)),
+                'currency' => $component->currency ?? 'EUR',
+                'is_mandatory' => false,
+                'lead_time' => null,
+                'remarks' => null,
+            ];
+        }
+
+        return $bomItems;
     }
 
     private function buildTechSpecs(Product $product, array $selections): array
