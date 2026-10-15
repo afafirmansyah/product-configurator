@@ -24,10 +24,19 @@ class CompatibilityService
      */
     public function getDisabledOptions(Product $product, array $selections): array
     {
+        // Consume the eager-loaded relation when ConfiguratorService provided it;
+        // fall back to a constrained load (the compatibilityRules relation already
+        // filters is_active) only when used standalone. targetAttribute.options is
+        // loaded so the compatible-complement needs no extra query.
+        $product->loadMissing([
+            'compatibilityRules.attribute',
+            'compatibilityRules.option',
+            'compatibilityRules.targetAttribute.options',
+            'compatibilityRules.targetOption',
+        ]);
+
         /** @var Collection<int, CompatibilityRule> $rules */
-        $rules = $product->compatibilityRules()
-            ->with(['attribute', 'option', 'targetAttribute', 'targetOption'])
-            ->get();
+        $rules = $product->compatibilityRules;
 
         $disabled = [];
 
@@ -73,7 +82,7 @@ class CompatibilityService
      */
     private function applyCompatibleRules(Collection $rules, array $selections, array &$disabled): void
     {
-        /** @var array<int, array{allowed: array<int, string>, reason: string}> $allowListsByTarget */
+        /** @var array<int, array{allowed: array<int, string>, reason: string, options: Collection<int, AttributeOption>}> $allowListsByTarget */
         $allowListsByTarget = [];
 
         foreach ($rules as $rule) {
@@ -89,22 +98,24 @@ class CompatibilityService
             $allowListsByTarget[$targetAttrId] ??= [
                 'allowed' => [],
                 'reason' => $rule->reason ?? 'Only compatible with current selection.',
+                // Read the complement from the eager-loaded targetAttribute.options
+                // instead of issuing a per-target query.
+                'options' => $rule->targetAttribute?->options ?? new Collection,
             ];
             $allowListsByTarget[$targetAttrId]['allowed'][(string) $rule->target_option_id] = true;
         }
 
         foreach ($allowListsByTarget as $targetAttrId => $allowList) {
-            $activeOptionIds = AttributeOption::query()
-                ->where('attribute_id', $targetAttrId)
-                ->where('is_active', true)
-                ->pluck('id');
-
-            foreach ($activeOptionIds as $optionId) {
-                if (isset($allowList['allowed'][(string) $optionId])) {
+            foreach ($allowList['options'] as $option) {
+                if (! $option->is_active) {
                     continue;
                 }
 
-                $disabled[$targetAttrId][$optionId] ??= $allowList['reason'];
+                if (isset($allowList['allowed'][(string) $option->id])) {
+                    continue;
+                }
+
+                $disabled[$targetAttrId][$option->id] ??= $allowList['reason'];
             }
         }
     }

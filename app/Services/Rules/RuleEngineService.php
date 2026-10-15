@@ -32,9 +32,11 @@ class RuleEngineService
      */
     public function evaluate(Product $product, array $selections, bool $debug = false): array
     {
-        $rules = $product->configurationRules()
-            ->with(['conditions.attribute', 'actions'])
-            ->get();
+        // Consume the eager-loaded relation when ConfiguratorService provided it;
+        // fall back to a constrained load (which preserves is_active + ordering)
+        // only when this service is used standalone.
+        $product->loadMissing(['configurationRules.conditions.attribute', 'configurationRules.actions']);
+        $rules = $product->configurationRules;
 
         $effects = [
             'visible_attributes' => [],

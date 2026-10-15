@@ -19,39 +19,38 @@ class PricingService
 
         $baseCents = Money::toCents($basePrice);
 
+        // Collect every numeric option id across all selections first, then load
+        // them (with their option prices) in a SINGLE query to avoid a per-option
+        // find()/first() N+1. The iteration order below drives the result, so keep
+        // the flat, de-duplicated id list in selection order.
+        $orderedOptionIds = $this->collectOptionIds($selections);
+        $options = AttributeOption::query()
+            ->with('optionPrices')
+            ->whereIn('id', $orderedOptionIds)
+            ->get()
+            ->keyBy('id');
+
         $optionAdjustments = [];
         $optionsCents = 0;
 
-        foreach ($selections as $attributeId => $value) {
-            if (empty($value)) {
+        foreach ($orderedOptionIds as $optionId) {
+            $option = $options->get($optionId);
+            if (! $option) {
                 continue;
             }
 
-            $optionIds = is_array($value) ? $value : [$value];
+            $adjustment = $priceList
+                ? ($option->optionPrices->firstWhere('price_list_id', $priceList->id)?->price_adjustment ?? $option->price_adjustment)
+                : $option->price_adjustment;
 
-            foreach ($optionIds as $optionId) {
-                if (! is_numeric($optionId)) {
-                    continue;
-                }
+            $adjustmentCents = Money::toCents($adjustment);
 
-                $option = AttributeOption::find($optionId);
-                if (! $option) {
-                    continue;
-                }
-
-                $adjustment = $priceList
-                    ? ($option->optionPrices()->where('price_list_id', $priceList->id)->first()?->price_adjustment ?? $option->price_adjustment)
-                    : $option->price_adjustment;
-
-                $adjustmentCents = Money::toCents($adjustment);
-
-                if ($adjustmentCents !== 0) {
-                    $optionAdjustments[] = [
-                        'option_name' => $option->name,
-                        'adjustment' => Money::fromCents($adjustmentCents),
-                    ];
-                    $optionsCents = Money::addCents($optionsCents, $adjustmentCents);
-                }
+            if ($adjustmentCents !== 0) {
+                $optionAdjustments[] = [
+                    'option_name' => $option->name,
+                    'adjustment' => Money::fromCents($adjustmentCents),
+                ];
+                $optionsCents = Money::addCents($optionsCents, $adjustmentCents);
             }
         }
 
@@ -67,5 +66,39 @@ class PricingService
             'total' => Money::fromCents($subtotalCents),
             'currency' => $currency,
         ];
+    }
+
+    /**
+     * Flatten the selections into a de-duplicated list of numeric option ids,
+     * preserving selection order so the price breakdown stays deterministic.
+     *
+     * @param  array<int|string, mixed>  $selections
+     * @return list<int>
+     */
+    private function collectOptionIds(array $selections): array
+    {
+        $ids = [];
+
+        foreach ($selections as $value) {
+            if (empty($value)) {
+                continue;
+            }
+
+            $optionIds = is_array($value) ? $value : [$value];
+
+            foreach ($optionIds as $optionId) {
+                if (! is_numeric($optionId)) {
+                    continue;
+                }
+
+                $id = (int) $optionId;
+
+                if (! in_array($id, $ids, true)) {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        return $ids;
     }
 }

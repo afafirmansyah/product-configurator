@@ -15,11 +15,11 @@ class BomGeneratorService
 
     public function generate(Product $product, array $selections): array
     {
-        $rules = $product->bomRules()
-            ->with(['conditions.attribute', 'items.component.category'])
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
+        // Consume the eager-loaded relation when ConfiguratorService provided it;
+        // fall back to a constrained load (the bomRules relation already filters
+        // is_active and orders by sort_order) only when used standalone.
+        $product->loadMissing(['bomRules.conditions.attribute', 'bomRules.items.component.category']);
+        $rules = $product->bomRules;
 
         $bom = [];
         $itemNo = 1;

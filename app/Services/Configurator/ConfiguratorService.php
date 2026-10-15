@@ -23,14 +23,22 @@ class ConfiguratorService
 
     public function evaluate(Product $product, array $selections, bool $debug = false): ConfigurationResult
     {
-        // 1. Load product schema (attributes with options)
-        $product->load([
+        // 1. Load the full product schema in one pass so every downstream service
+        //    consumes already-loaded relations instead of re-querying. The relation
+        //    methods (configurationRules/bomRules/compatibilityRules/partNumberPattern)
+        //    bake in the Phase 1 is_active filtering and ordering, so loading through
+        //    them preserves those guarantees for all consumers. loadMissing keeps a
+        //    caller-provided eager load intact rather than discarding it.
+        $product->loadMissing([
             'productAttributes.attribute.options',
             'configurationRules.conditions.attribute',
             'configurationRules.actions',
             'bomRules.conditions.attribute',
-            'bomRules.items.component',
-            'compatibilityRules',
+            'bomRules.items.component.category',
+            'compatibilityRules.attribute',
+            'compatibilityRules.option',
+            'compatibilityRules.targetAttribute.options',
+            'compatibilityRules.targetOption',
             'partNumberPattern',
         ]);
 
