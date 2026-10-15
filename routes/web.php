@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\Admin\AttributeController;
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\BomController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CompatibilityController;
 use App\Http\Controllers\Admin\ComponentController;
+use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FamilyController;
 use App\Http\Controllers\Admin\PartNumberController;
@@ -22,9 +24,6 @@ use App\Http\Controllers\Configurator\QuotationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sales\BomExportController;
 use App\Http\Controllers\Sales\WorkspaceController;
-use App\Models\AuditLog;
-use App\Models\ConfigurationSession;
-use App\Models\QuotationRequest;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -141,18 +140,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:super_admin|pr
     Route::put('/pricing/lists/{priceList}', [PricingController::class, 'updateList'])->name('pricing.lists.update');
 
     // Configurations
-    Route::get('/configurations', function () {
-        $configurations = ConfigurationSession::with(['product', 'user'])->latest()->paginate(20);
-
-        return view('admin.configurations.index', compact('configurations'));
-    })->name('configurations.index');
+    Route::get('/configurations', [ConfigurationController::class, 'index'])->name('configurations.index');
 
     // Quotations
-    Route::get('/quotations', function () {
-        $quotations = QuotationRequest::with(['configuration.product'])->latest()->paginate(20);
-
-        return view('admin.quotations.index', compact('quotations'));
-    })->name('quotations.index');
+    Route::get('/quotations', [QuotationAdminController::class, 'index'])->name('quotations.index');
     Route::patch('/quotations/{quotation}/status', [QuotationAdminController::class, 'updateStatus'])->name('quotations.status');
 
     // Users
@@ -168,11 +159,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:super_admin|pr
     Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
 
     // Audit Logs
-    Route::get('/audit-logs', function () {
-        $logs = AuditLog::with('user')->latest()->paginate(50);
-
-        return view('admin.audit-logs.index', compact('logs'));
-    })->name('audit-logs.index');
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
