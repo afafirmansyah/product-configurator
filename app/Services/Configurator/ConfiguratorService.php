@@ -4,7 +4,7 @@ namespace App\Services\Configurator;
 
 use App\DTOs\ConfigurationResult;
 use App\Models\Product;
-use App\Services\Bom\BomService;
+use App\Services\Bom\BomGeneratorService;
 use App\Services\PartNumber\PartNumberService;
 use App\Services\Pricing\PricingService;
 use App\Services\Rules\RuleEngineService;
@@ -14,7 +14,7 @@ class ConfiguratorService
     public function __construct(
         private readonly RuleEngineService $ruleEngine,
         private readonly CompatibilityService $compatibility,
-        private readonly BomService $bom,
+        private readonly BomGeneratorService $bom,
         private readonly PricingService $pricing,
         private readonly PartNumberService $partNumber,
     ) {}
@@ -94,14 +94,14 @@ class ConfiguratorService
 
         // Check required visible attributes are filled
         foreach ($requiredIds as $attrId) {
-            if (!in_array($attrId, $visibleIds)) {
+            if (! in_array($attrId, $visibleIds)) {
                 continue;
             }
 
             $value = $selections[$attrId] ?? null;
             if (empty($value)) {
                 $attr = $product->productAttributes->firstWhere('attribute_id', $attrId)?->attribute;
-                $errors[] = ($attr?->name ?? "Attribute #{$attrId}") . ' is required.';
+                $errors[] = ($attr?->name ?? "Attribute #{$attrId}").' is required.';
             }
         }
 
@@ -110,7 +110,7 @@ class ConfiguratorService
             $selected = $selections[$attrId] ?? null;
             if ($selected && isset($options[$selected])) {
                 $attr = $product->productAttributes->firstWhere('attribute_id', $attrId)?->attribute;
-                $errors[] = ($attr?->name ?? "Attribute #{$attrId}") . ': ' . $options[$selected];
+                $errors[] = ($attr?->name ?? "Attribute #{$attrId}").': '.$options[$selected];
             }
         }
 

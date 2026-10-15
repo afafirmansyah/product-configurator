@@ -2,12 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class BomRuleCondition extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'bom_rule_id', 'attribute_id', 'operator', 'value', 'logic', 'group',
+        'bom_rule_id',
+        'attribute_id',
+        'operator',
+        'value',
+        'logic',
+        'group',
     ];
 
     public function bomRule()

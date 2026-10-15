@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class BomRuleItem extends Model
 {
+    use HasFactory;
+
     protected $fillable = ['bom_rule_id', 'component_id', 'quantity', 'is_mandatory'];
 
     protected $casts = [

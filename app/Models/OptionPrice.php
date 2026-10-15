@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class OptionPrice extends Model
 {
+    use HasFactory;
+
     protected $fillable = ['attribute_option_id', 'price_list_id', 'price_adjustment', 'valid_from', 'valid_to'];
 
     protected $casts = [

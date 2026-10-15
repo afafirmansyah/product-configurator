@@ -2,13 +2,14 @@
 
 namespace App\Services\Rules;
 
-use App\Enums\RuleOperator;
-use App\Models\ConfigurationRule;
 use App\Models\Product;
-use Illuminate\Support\Collection;
 
 class RuleEngineService
 {
+    public function __construct(
+        private readonly ConditionEvaluator $conditionEvaluator,
+    ) {}
+
     /**
      * Evaluate all active rules for a product against current selections.
      * Returns structured effects: visible, required, disabled options, warnings, errors.
@@ -32,7 +33,11 @@ class RuleEngineService
         ];
 
         foreach ($rules as $rule) {
-            $conditionResult = $this->evaluateConditions($rule, $selections);
+            $conditionResult = $this->conditionEvaluator->passes(
+                $rule->conditions,
+                $rule->condition_logic,
+                $selections,
+            );
 
             if ($debug) {
                 $effects['trace'][] = [
@@ -43,7 +48,7 @@ class RuleEngineService
                 ];
             }
 
-            if (!$conditionResult) {
+            if (! $conditionResult) {
                 continue;
             }
 
@@ -53,52 +58,6 @@ class RuleEngineService
         }
 
         return $effects;
-    }
-
-    private function evaluateConditions(ConfigurationRule $rule, array $selections): bool
-    {
-        $conditions = $rule->conditions;
-
-        if ($conditions->isEmpty()) {
-            return true;
-        }
-
-        // Group conditions by group number
-        $groups = $conditions->groupBy('group');
-        $groupResults = [];
-
-        foreach ($groups as $groupId => $groupConditions) {
-            $groupResult = $this->evaluateConditionGroup($groupConditions, $selections);
-            $groupResults[] = $groupResult;
-        }
-
-        // Top-level logic between groups uses the rule's condition_logic
-        if ($rule->condition_logic === 'OR') {
-            return in_array(true, $groupResults);
-        }
-
-        return !in_array(false, $groupResults);
-    }
-
-    private function evaluateConditionGroup(Collection $conditions, array $selections): bool
-    {
-        $results = [];
-
-        foreach ($conditions as $condition) {
-            $attributeId = $condition->attribute_id;
-            $actual = $selections[$attributeId] ?? null;
-            $operator = RuleOperator::from($condition->operator);
-            $results[] = $operator->evaluate($actual, $condition->value);
-        }
-
-        // Within a group, use the first condition's logic (AND/OR)
-        $logic = $conditions->first()->logic ?? 'AND';
-
-        if ($logic === 'OR') {
-            return in_array(true, $results);
-        }
-
-        return !in_array(false, $results);
     }
 
     private function applyAction(object $action, array &$effects): void

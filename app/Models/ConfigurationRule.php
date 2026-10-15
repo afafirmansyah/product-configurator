@@ -2,16 +2,25 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ConfigurationRule extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'product_id', 'name', 'code', 'type', 'condition_logic',
-        'priority', 'is_active', 'effective_from', 'effective_to', 'version',
+        'product_id',
+        'name',
+        'code',
+        'type',
+        'condition_logic',
+        'priority',
+        'is_active',
+        'effective_from',
+        'effective_to',
+        'version',
     ];
 
     protected $casts = [

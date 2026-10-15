@@ -2,16 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BomRule extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'product_id', 'name', 'code', 'condition_logic', 'is_active',
-        'effective_from', 'effective_to', 'sort_order',
+        'product_id',
+        'name',
+        'code',
+        'condition_logic',
+        'is_active',
+        'effective_from',
+        'effective_to',
+        'sort_order',
     ];
 
     protected $casts = [
