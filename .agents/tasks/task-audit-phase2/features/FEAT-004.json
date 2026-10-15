@@ -1,0 +1,26 @@
+{
+    "id": "FEAT-004",
+    "type": "fix",
+    "description": "Make compatibility rules bidirectional and support the compatible type (F-2). CompatibilityService only fires when selections[attribute_id] === option_id, only handles type 'incompatible', disables only the target (asymmetric/evadable), and ignores type 'compatible'. Make incompatibility symmetric and implement compatible semantics, preserving human-readable reason strings. Independent of FEAT-003; depends on FEAT-001 (factories, single BOM path).",
+    "status": "completed",
+    "steps": [
+        "In CompatibilityService::getDisabledOptions(): for type 'incompatible', keep the existing direction (trigger option selected on attribute_id -> disable target_option_id on target_attribute_id) AND add the reverse direction (target_option_id selected on target_attribute_id -> disable option_id on attribute_id). Use rule->reason ?? 'Incompatible with current selection.' as the reason on both directions. Keep string-safe comparisons via (string) casts.",
+        "Implement type 'compatible': when a compatible rule's trigger (option_id on attribute_id) is selected, restrict target_attribute_id to ONLY the listed target_option_id(s) across all matching compatible rules for that (trigger, target_attribute_id) pair — build the allow-list, then disable every OTHER active option of target_attribute_id with a reason like 'Only compatible with current selection.' Load the target attribute's active options to compute the complement.",
+        "Preserve Phase 1 behavior: keep consuming product->compatibilityRules() which already filters is_active; do not weaken that filter.",
+        "Add tests/Feature/CompatibilityRulesTest.php (Pest): (a) incompatible is symmetric — selecting A disables B, and in a fresh evaluation selecting B disables A (both orders); (b) a compatible rule restricts target_attribute_id to the listed option(s) when the trigger is selected (a non-listed option of the target attribute is disabled); (c) reason strings are present on disabled entries. Run Pint and targeted tests, then the full suite."
+    ],
+    "acceptance_criteria": [
+        "Incompatible rules disable in both directions (A->B and B->A) regardless of selection order (CompatibilityRulesTest passes).",
+        "A compatible rule, when triggered, allows only its listed target option(s) and disables the rest of that target attribute's active options.",
+        "Human-readable reason strings are preserved/returned for every disabled option.",
+        "Phase 1 is_active filtering on compatibility rules is preserved.",
+        "Full suite stays green."
+    ],
+    "verification": [
+        "& \"C:\\Users\\Fauzi.HEC\\.config\\herd\\bin\\php84\\php.exe\" vendor/bin/pint --dirty --format agent",
+        "& \"C:\\Users\\Fauzi.HEC\\.config\\herd\\bin\\php84\\php.exe\" artisan test --compact --filter=CompatibilityRules",
+        "& \"C:\\Users\\Fauzi.HEC\\.config\\herd\\bin\\php84\\php.exe\" artisan test --compact"
+    ],
+    "blocked_reason": null,
+    "findings": "DONE. Full suite green: 39 passed (92 assertions); CompatibilityRulesTest adds 3 tests.\n\n=== CompatibilityService::getDisabledOptions (app/Services/Configurator/CompatibilityService.php) ===\nReturn shape UNCHANGED: array<int attribute_id, array<int option_id, string reason>> i.e. [attribute_id => [option_id => reason]]. ConfiguratorService::evaluate merges this with rule-driven disabled_options via the union operator (numeric keys preserved) and validate() reads $options[$selected] as the reason string -- shape stays compatible.\n\n=== incompatible (now SYMMETRIC) ===\nPer rule, two independent directions via helper applyIncompatibleRule(): if trigger (option_id on attribute_id) selected => disable target_option_id on target_attribute_id; if target_option_id on target_attribute_id selected => disable option_id on attribute_id. Both use rule->reason ?? 'Incompatible with current selection.'. Comparisons via (string) casts in isSelected().\n\n=== compatible (restrict-to-listed) ===\napplyCompatibleRules() builds an allow-list PER target_attribute_id ACROSS all triggered compatible rules first (so two compatible rules for the same (trigger,target_attr) union their allowed target options instead of cancelling each other), then loads AttributeOption where attribute_id=target and is_active=true and disables every active option NOT in the allow-list with rule->reason ?? 'Only compatible with current selection.'. Uses ??= so an incompatible-set reason on the same (attr,option) is not overwritten.\n\n=== Phase 1 preserved ===\nStill consumes product->compatibilityRules() (which filters is_active=true); only is_active target options are considered for the compatible complement. No filter weakened.\n\n=== Test ===\ntests/Feature/CompatibilityRulesTest.php resolves the service via app(CompatibilityService::class). Covers symmetric incompatible (both orders), compatible restrict-to-listed (non-listed option disabled, listed one not), and null-reason fallback to the default string.\n\n=== disabled-options shape ===\n[attribute_id (int) => [option_id (int) => reason (string)]]."
+}
