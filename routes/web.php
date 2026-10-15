@@ -24,6 +24,7 @@ use App\Http\Controllers\Configurator\QuotationController;
 use App\Http\Controllers\Configurator\QuoteExportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Sales\BomExportController;
+use App\Http\Controllers\Sales\StoredExportController;
 use App\Http\Controllers\Sales\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
@@ -60,6 +61,8 @@ Route::middleware('auth')->group(function () {
         Route::patch('/configurations/{configuration}/status', [WorkspaceController::class, 'updateStatus'])->name('configuration.status');
         Route::get('/configurations/{configuration}/bom/pdf', [BomExportController::class, 'pdf'])->name('bom.pdf');
         Route::get('/configurations/{configuration}/bom/excel', [BomExportController::class, 'excel'])->name('bom.excel');
+        Route::post('/configurations/{configuration}/bom/queue/{format}', [BomExportController::class, 'queue'])->name('bom.queue');
+        Route::get('/bom/download', [StoredExportController::class, 'download'])->name('bom.download')->middleware('signed');
     });
 
     // ── Legacy redirects ──────────────────────────────────────────────────────
