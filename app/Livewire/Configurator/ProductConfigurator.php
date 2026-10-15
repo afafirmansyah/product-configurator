@@ -4,6 +4,7 @@ namespace App\Livewire\Configurator;
 
 use App\Models\ConfigurationSession;
 use App\Models\Product;
+use App\Services\Configuration\ConfigurationNumberGenerator;
 use App\Services\Configurator\ConfiguratorService;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -11,10 +12,15 @@ use Livewire\Component;
 class ProductConfigurator extends Component
 {
     public Product $product;
+
     public array $selections = [];
+
     public int $currentStep = 0;
+
     public array $steps = [];
+
     public ?array $result = null;
+
     public bool $showSummary = false;
 
     public function mount(Product $product): void
@@ -28,7 +34,7 @@ class ProductConfigurator extends Component
     private function buildSteps(): void
     {
         $grouped = $this->product->productAttributes
-            ->groupBy(fn($pa) => $pa->step_name ?: 'Configuration');
+            ->groupBy(fn ($pa) => $pa->step_name ?: 'Configuration');
 
         $this->steps = $grouped->keys()->values()->toArray();
     }
@@ -77,9 +83,16 @@ class ProductConfigurator extends Component
         $service = app(ConfiguratorService::class);
         $result = $service->evaluate($this->product, $this->selections);
 
+        if ($result->validation['valid'] === false) {
+            $this->result = $result->toArray();
+            $this->addError('configuration', 'This configuration is invalid and cannot be saved. Resolve the validation errors first.');
+
+            return;
+        }
+
         $session = ConfigurationSession::create([
             'ulid' => Str::ulid(),
-            'configuration_number' => $this->generateConfigNumber(),
+            'configuration_number' => app(ConfigurationNumberGenerator::class)->next(),
             'product_id' => $this->product->id,
             'user_id' => auth()->id(),
             'status' => 'draft',
@@ -107,13 +120,6 @@ class ProductConfigurator extends Component
         $this->redirect(route('configurator.show', $session->ulid));
     }
 
-    private function generateConfigNumber(): string
-    {
-        $year = now()->year;
-        $count = ConfigurationSession::whereYear('created_at', $year)->count() + 1;
-        return sprintf('CFG-%d-%06d', $year, $count);
-    }
-
     public function getCurrentStepAttributes()
     {
         if (empty($this->steps)) {
@@ -123,13 +129,13 @@ class ProductConfigurator extends Component
         $stepName = $this->steps[$this->currentStep] ?? null;
 
         return $this->product->productAttributes->filter(
-            fn($pa) => ($pa->step_name ?: 'Configuration') === $stepName
+            fn ($pa) => ($pa->step_name ?: 'Configuration') === $stepName
         );
     }
 
     public function render()
     {
-        if (!$this->result) {
+        if (! $this->result) {
             $this->recalculate();
         }
 

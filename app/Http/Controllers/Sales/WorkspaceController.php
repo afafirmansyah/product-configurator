@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductFamily;
 use App\Services\Bom\BomGeneratorService;
+use App\Services\Configuration\ConfigurationNumberGenerator;
 use App\Services\Configurator\ConfiguratorService;
 use App\Services\Pricing\PricingService;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class WorkspaceController extends Controller
         private BomGeneratorService $bomService,
         private ConfiguratorService $configuratorService,
         private PricingService $pricingService,
+        private ConfigurationNumberGenerator $configurationNumberGenerator,
     ) {}
 
     // ── Catalog ───────────────────────────────────────────────────────────────
@@ -104,7 +106,7 @@ class WorkspaceController extends Controller
 
         $new = $configuration->replicate(['ulid', 'configuration_number', 'bom_revision', 'bom_generated_at', 'bom_snapshot', 'validation_errors']);
         $new->ulid = (string) Str::ulid();
-        $new->configuration_number = $this->generateConfigNumber();
+        $new->configuration_number = $this->configurationNumberGenerator->next();
         $new->name = ($configuration->name ?? $configuration->configuration_number).' (Copy)';
         $new->status = 'draft';
         $new->bom_status = 'pending';
@@ -174,13 +176,5 @@ class WorkspaceController extends Controller
     private function authorizeConfiguration(ConfigurationSession $configuration): void
     {
         $this->authorize('view', $configuration);
-    }
-
-    private function generateConfigNumber(): string
-    {
-        $year = date('Y');
-        $last = ConfigurationSession::whereYear('created_at', $year)->count();
-
-        return 'CFG-'.$year.'-'.str_pad($last + 1, 6, '0', STR_PAD_LEFT);
     }
 }
