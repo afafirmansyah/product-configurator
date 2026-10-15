@@ -13,29 +13,45 @@ use Livewire\Component;
 class ProductBuilder extends Component
 {
     public ?Product $product = null;
+
     public bool $isNew = false;
 
     // Product fields
     public string $name = '';
+
     public string $code = '';
+
     public string $sku = '';
+
     public string $manufacturer = '';
+
     public string $short_description = '';
+
     public string $long_description = '';
+
     public string $applications = '';
+
     public string $features = '';
+
     public float $base_price = 0;
+
     public string $currency = 'EUR';
+
     public string $status = 'draft';
+
     public string $version = '1.0';
+
     public int $product_family_id = 0;
 
     // Attribute assignment
     public array $assignedAttributes = [];
+
     public string $attributeSearch = '';
 
     public function mount(?Product $product = null): void
     {
+        abort_unless(auth()->check() && auth()->user()->hasAnyRole(['super_admin', 'product_manager']), 403);
+
         if ($product && $product->exists) {
             $this->product = $product;
             $this->product->load(['productAttributes.attribute', 'family']);
@@ -61,7 +77,7 @@ class ProductBuilder extends Component
         $this->version = $this->product->version;
         $this->product_family_id = $this->product->product_family_id;
 
-        $this->assignedAttributes = $this->product->productAttributes->map(fn($pa) => [
+        $this->assignedAttributes = $this->product->productAttributes->map(fn ($pa) => [
             'attribute_id' => $pa->attribute_id,
             'name' => $pa->attribute->name,
             'code' => $pa->attribute->code,
@@ -82,7 +98,7 @@ class ProductBuilder extends Component
         }
 
         $attribute = Attribute::find($attributeId);
-        if (!$attribute) {
+        if (! $attribute) {
             return;
         }
 
@@ -167,7 +183,7 @@ class ProductBuilder extends Component
 
     public function publish(): void
     {
-        if (!$this->product) {
+        if (! $this->product) {
             return;
         }
 
@@ -181,7 +197,7 @@ class ProductBuilder extends Component
     public function render()
     {
         $availableAttributes = Attribute::where('is_active', true)
-            ->when($this->attributeSearch, fn($q) => $q->where('name', 'like', "%{$this->attributeSearch}%"))
+            ->when($this->attributeSearch, fn ($q) => $q->where('name', 'like', "%{$this->attributeSearch}%"))
             ->orderBy('name')
             ->get();
 

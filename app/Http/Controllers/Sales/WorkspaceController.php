@@ -30,18 +30,18 @@ class WorkspaceController extends Controller
             ->orderBy('name');
 
         if ($search = $request->search) {
-            $query->where(fn($q) => $q->where('name', 'like', "%{$search}%")
+            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%"));
         }
         if ($family = $request->family) {
-            $query->whereHas('family', fn($q) => $q->where('slug', $family));
+            $query->whereHas('family', fn ($q) => $q->where('slug', $family));
         }
         if ($category = $request->category) {
-            $query->whereHas('category', fn($q) => $q->where('slug', $category));
+            $query->whereHas('category', fn ($q) => $q->where('slug', $category));
         }
 
-        $products   = $query->paginate(12)->withQueryString();
-        $families   = ProductFamily::orderBy('name')->get();
+        $products = $query->paginate(12)->withQueryString();
+        $families = ProductFamily::orderBy('name')->get();
         $categories = ProductCategory::orderBy('name')->get();
 
         return view('sales.catalog', compact('products', 'families', 'categories'));
@@ -50,6 +50,7 @@ class WorkspaceController extends Controller
     public function productDetail(Product $product)
     {
         $product->load(['family', 'category', 'productAttributes.attribute.options']);
+
         return view('sales.product-detail', compact('product'));
     }
 
@@ -65,13 +66,14 @@ class WorkspaceController extends Controller
             $query->where('status', $status);
         }
         if ($search = $request->search) {
-            $query->where(fn($q) => $q->where('configuration_number', 'like', "%{$search}%")
+            $query->where(fn ($q) => $q->where('configuration_number', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")
                 ->orWhere('customer', 'like', "%{$search}%")
                 ->orWhere('project', 'like', "%{$search}%"));
         }
 
         $configurations = $query->paginate(20)->withQueryString();
+
         return view('sales.configurations', compact('configurations'));
     }
 
@@ -84,10 +86,11 @@ class WorkspaceController extends Controller
         $selections = $configuration->getSelectionsArray();
         $result = null;
 
-        if (!empty($selections)) {
+        if (! empty($selections)) {
             try {
                 $result = $this->configuratorService->evaluate($configuration->product, $selections);
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         }
 
         $bomItems = $configuration->bom_snapshot ?? [];
@@ -102,7 +105,7 @@ class WorkspaceController extends Controller
         $new = $configuration->replicate(['ulid', 'configuration_number', 'bom_revision', 'bom_generated_at', 'bom_snapshot', 'validation_errors']);
         $new->ulid = (string) Str::ulid();
         $new->configuration_number = $this->generateConfigNumber();
-        $new->name = ($configuration->name ?? $configuration->configuration_number) . ' (Copy)';
+        $new->name = ($configuration->name ?? $configuration->configuration_number).' (Copy)';
         $new->status = 'draft';
         $new->bom_status = 'pending';
         $new->bom_revision = 0;
@@ -127,7 +130,7 @@ class WorkspaceController extends Controller
         $bomItems = $this->bomService->generate($configuration->product, $selections);
         $this->bomService->saveToSession($configuration, $bomItems);
 
-        return back()->with('success', 'BOM generated successfully. Revision ' . $configuration->fresh()->bom_revision . '.');
+        return back()->with('success', 'BOM generated successfully. Revision '.$configuration->fresh()->bom_revision.'.');
     }
 
     public function submitForReview(Request $request, ConfigurationSession $configuration)
@@ -136,13 +139,13 @@ class WorkspaceController extends Controller
 
         $request->validate([
             'customer' => 'required|string|max:255',
-            'project'  => 'nullable|string|max:255',
+            'project' => 'nullable|string|max:255',
         ]);
 
         $configuration->update([
-            'status'   => 'finalized',
+            'status' => 'finalized',
             'customer' => $request->customer,
-            'project'  => $request->project,
+            'project' => $request->project,
         ]);
 
         return back()->with('success', 'Configuration submitted for review.');
@@ -155,13 +158,14 @@ class WorkspaceController extends Controller
         $request->validate(['status' => 'required|in:draft,validated,finalized']);
         $configuration->update(['status' => $request->status]);
 
-        return back()->with('success', 'Status updated to ' . ucfirst($request->status) . '.');
+        return back()->with('success', 'Status updated to '.ucfirst($request->status).'.');
     }
 
     public function destroy(ConfigurationSession $configuration)
     {
         $this->authorizeConfiguration($configuration);
         $configuration->delete();
+
         return redirect()->route('sales.configurations')->with('success', 'Configuration deleted.');
     }
 
@@ -169,15 +173,14 @@ class WorkspaceController extends Controller
 
     private function authorizeConfiguration(ConfigurationSession $configuration): void
     {
-        if ($configuration->user_id !== auth()->id() && !auth()->user()->hasRole(['super_admin', 'product_manager'])) {
-            abort(403);
-        }
+        $this->authorize('view', $configuration);
     }
 
     private function generateConfigNumber(): string
     {
         $year = date('Y');
         $last = ConfigurationSession::whereYear('created_at', $year)->count();
-        return 'CFG-' . $year . '-' . str_pad($last + 1, 6, '0', STR_PAD_LEFT);
+
+        return 'CFG-'.$year.'-'.str_pad($last + 1, 6, '0', STR_PAD_LEFT);
     }
 }

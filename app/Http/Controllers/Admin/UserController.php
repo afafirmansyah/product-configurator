@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\AuditService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Password;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -15,13 +17,13 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $users = User::with('roles')
-            ->when($request->search, fn($q) => $q->where(function ($q) use ($request) {
+            ->when($request->search, fn ($q) => $q->where(function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('email', 'like', "%{$request->search}%")
-                  ->orWhere('company', 'like', "%{$request->search}%");
+                    ->orWhere('email', 'like', "%{$request->search}%")
+                    ->orWhere('company', 'like', "%{$request->search}%");
             }))
-            ->when($request->role, fn($q) => $q->whereHas('roles', fn($q) => $q->where('name', $request->role)))
-            ->when($request->status !== null && $request->status !== '', fn($q) => $q->where('is_active', $request->status))
+            ->when($request->role, fn ($q) => $q->whereHas('roles', fn ($q) => $q->where('name', $request->role)))
+            ->when($request->status !== null && $request->status !== '', fn ($q) => $q->where('is_active', $request->status))
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -34,29 +36,30 @@ class UserController extends Controller
     public function create()
     {
         $roles = Role::orderBy('name')->get();
+
         return view('admin.users.create', compact('roles'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users',
             'password' => 'required|min:8|confirmed',
-            'company'  => 'nullable|string|max:255',
-            'phone'    => 'nullable|string|max:50',
-            'country'  => 'nullable|string|max:100',
-            'role'     => 'required|exists:roles,name',
-            'is_active'=> 'boolean',
+            'company' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'country' => 'nullable|string|max:100',
+            'role' => 'required|exists:roles,name',
+            'is_active' => 'boolean',
         ]);
 
         $user = User::create([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'password'  => Hash::make($data['password']),
-            'company'   => $data['company'] ?? null,
-            'phone'     => $data['phone'] ?? null,
-            'country'   => $data['country'] ?? null,
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+            'company' => $data['company'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'country' => $data['country'] ?? null,
             'is_active' => $request->boolean('is_active', true),
         ]);
 
@@ -70,7 +73,8 @@ class UserController extends Controller
     public function show(User $user)
     {
         $user->load('roles');
-        $recentActivity = \App\Models\AuditLog::where('user_id', $user->id)->latest()->limit(10)->get();
+        $recentActivity = AuditLog::where('user_id', $user->id)->latest()->limit(10)->get();
+
         return view('admin.users.show', compact('user', 'recentActivity'));
     }
 
@@ -78,29 +82,30 @@ class UserController extends Controller
     {
         $user->load('roles');
         $roles = Role::orderBy('name')->get();
+
         return view('admin.users.edit', compact('user', 'roles'));
     }
 
     public function update(Request $request, User $user)
     {
         $data = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email,' . $user->id,
-            'company'  => 'nullable|string|max:255',
-            'phone'    => 'nullable|string|max:50',
-            'country'  => 'nullable|string|max:100',
-            'role'     => 'required|exists:roles,name',
-            'is_active'=> 'boolean',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,'.$user->id,
+            'company' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'country' => 'nullable|string|max:100',
+            'role' => 'required|exists:roles,name',
+            'is_active' => 'boolean',
         ]);
 
         $old = $user->toArray();
 
         $user->update([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'company'   => $data['company'] ?? null,
-            'phone'     => $data['phone'] ?? null,
-            'country'   => $data['country'] ?? null,
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'company' => $data['company'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'country' => $data['country'] ?? null,
             'is_active' => $request->boolean('is_active', true),
         ]);
 
@@ -129,18 +134,17 @@ class UserController extends Controller
             return back()->with('error', 'You cannot deactivate your own account.');
         }
 
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
         app(AuditService::class)->log($user->is_active ? 'activated' : 'deactivated', $user);
 
         return back()->with('success', 'User status updated.');
     }
 
-    public function resetPassword(User $user)
+    public function resetPassword(User $user): RedirectResponse
     {
-        $password = Str::random(12);
-        $user->update(['password' => Hash::make($password)]);
+        Password::sendResetLink(['email' => $user->email]);
         app(AuditService::class)->log('password_reset', $user);
 
-        return back()->with('success', "Password reset. Temporary password: {$password}");
+        return back()->with('success', 'Password reset link sent to the user.');
     }
 }

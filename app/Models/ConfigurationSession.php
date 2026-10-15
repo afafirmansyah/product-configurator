@@ -2,18 +2,33 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ConfigurationSession extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'ulid', 'configuration_number', 'name', 'customer', 'project',
-        'product_id', 'user_id', 'status', 'bom_status', 'bom_revision',
-        'bom_generated_at', 'bom_snapshot', 'validation_errors',
-        'version', 'total_price', 'currency', 'configuration_code', 'snapshot',
+        'ulid',
+        'configuration_number',
+        'name',
+        'customer',
+        'project',
+        'product_id',
+        'user_id',
+        'status',
+        'bom_status',
+        'bom_revision',
+        'bom_generated_at',
+        'bom_snapshot',
+        'validation_errors',
+        'version',
+        'total_price',
+        'currency',
+        'configuration_code',
+        'snapshot',
     ];
 
     protected $casts = [

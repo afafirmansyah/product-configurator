@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class LoginController extends Controller
 {
-    public function login(Request $request)
+    public function login(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
             'email' => 'required|email',
@@ -18,7 +19,16 @@ class LoginController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            if (! auth()->user()->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors(['email' => 'These credentials do not match our records.'])->onlyInput('email');
+            }
+
             $request->session()->regenerate();
+
             return redirect()->intended(route('catalog.index'));
         }
 
@@ -30,6 +40,7 @@ class LoginController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect()->route('catalog.index');
     }
 
@@ -52,6 +63,7 @@ class LoginController extends Controller
         $user->assignRole('customer');
 
         Auth::login($user);
+
         return redirect()->route('catalog.index');
     }
 }

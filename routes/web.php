@@ -1,48 +1,70 @@
 <?php
 
+use App\Http\Controllers\Admin\AttributeController;
+use App\Http\Controllers\Admin\BomController;
+use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CompatibilityController;
+use App\Http\Controllers\Admin\ComponentController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\FamilyController;
+use App\Http\Controllers\Admin\PartNumberController;
+use App\Http\Controllers\Admin\PricingController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Admin\QuotationAdminController;
+use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\RuleController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Configurator\CatalogController;
+use App\Http\Controllers\Configurator\QuotationController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Sales\BomExportController;
+use App\Http\Controllers\Sales\WorkspaceController;
+use App\Models\AuditLog;
+use App\Models\ConfigurationSession;
+use App\Models\QuotationRequest;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-Route::get('/login', fn() => view('auth.login'))->name('login')->middleware('guest');
-Route::post('/login', [App\Http\Controllers\Auth\LoginController::class, 'login'])->name('login.post')->middleware('guest');
-Route::post('/logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])->name('logout');
-Route::get('/forgot-password', fn() => view('auth.passwords.forgot'))->name('password.request')->middleware('guest');
-Route::post('/forgot-password', [App\Http\Controllers\Auth\PasswordController::class, 'sendLink'])->name('password.email')->middleware('guest');
-Route::get('/reset-password/{token}', fn($token) => view('auth.passwords.reset', ['token' => $token]))->name('password.reset')->middleware('guest');
-Route::post('/reset-password', [App\Http\Controllers\Auth\PasswordController::class, 'reset'])->name('password.update')->middleware('guest');
+Route::get('/login', fn () => view('auth.login'))->name('login')->middleware('guest');
+Route::post('/login', [LoginController::class, 'login'])->name('login.post')->middleware(['guest', 'throttle:6,1']);
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+Route::get('/forgot-password', fn () => view('auth.passwords.forgot'))->name('password.request')->middleware('guest');
+Route::post('/forgot-password', [PasswordController::class, 'sendLink'])->name('password.email')->middleware(['guest', 'throttle:6,1']);
+Route::get('/reset-password/{token}', fn ($token) => view('auth.passwords.reset', ['token' => $token]))->name('password.reset')->middleware('guest');
+Route::post('/reset-password', [PasswordController::class, 'reset'])->name('password.update')->middleware(['guest', 'throttle:6,1']);
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
-    Route::put('/profile', [App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
-    Route::put('/profile/password', [App\Http\Controllers\ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 });
 
 // ── Main Application (auth required) ─────────────────────────────────────────
-Route::get('/', fn() => redirect()->route('login'));
+Route::get('/', fn () => redirect()->route('login'));
 
 Route::middleware('auth')->group(function () {
     // ── Sales Workspace ───────────────────────────────────────────────────────
     Route::prefix('sales')->name('sales.')->group(function () {
-        Route::get('/catalog', [App\Http\Controllers\Sales\WorkspaceController::class, 'catalog'])->name('catalog');
-        Route::get('/catalog/{product:slug}', [App\Http\Controllers\Sales\WorkspaceController::class, 'productDetail'])->name('product.detail');
-        Route::get('/configurations', [App\Http\Controllers\Sales\WorkspaceController::class, 'configurations'])->name('configurations');
-        Route::get('/configurations/{configuration}', [App\Http\Controllers\Sales\WorkspaceController::class, 'configurationDetail'])->name('configuration.detail');
-        Route::post('/configurations/{configuration}/duplicate', [App\Http\Controllers\Sales\WorkspaceController::class, 'duplicate'])->name('configuration.duplicate');
-        Route::post('/configurations/{configuration}/generate-bom', [App\Http\Controllers\Sales\WorkspaceController::class, 'generateBom'])->name('configuration.generate-bom');
-        Route::post('/configurations/{configuration}/submit', [App\Http\Controllers\Sales\WorkspaceController::class, 'submitForReview'])->name('configuration.submit');
-        Route::delete('/configurations/{configuration}', [App\Http\Controllers\Sales\WorkspaceController::class, 'destroy'])->name('configuration.destroy');
-        Route::patch('/configurations/{configuration}/status', [App\Http\Controllers\Sales\WorkspaceController::class, 'updateStatus'])->name('configuration.status');
-        Route::get('/configurations/{configuration}/bom/pdf', [App\Http\Controllers\Sales\BomExportController::class, 'pdf'])->name('bom.pdf');
-        Route::get('/configurations/{configuration}/bom/excel', [App\Http\Controllers\Sales\BomExportController::class, 'excel'])->name('bom.excel');
+        Route::get('/catalog', [WorkspaceController::class, 'catalog'])->name('catalog');
+        Route::get('/catalog/{product:slug}', [WorkspaceController::class, 'productDetail'])->name('product.detail');
+        Route::get('/configurations', [WorkspaceController::class, 'configurations'])->name('configurations');
+        Route::get('/configurations/{configuration}', [WorkspaceController::class, 'configurationDetail'])->name('configuration.detail');
+        Route::post('/configurations/{configuration}/duplicate', [WorkspaceController::class, 'duplicate'])->name('configuration.duplicate');
+        Route::post('/configurations/{configuration}/generate-bom', [WorkspaceController::class, 'generateBom'])->name('configuration.generate-bom');
+        Route::post('/configurations/{configuration}/submit', [WorkspaceController::class, 'submitForReview'])->name('configuration.submit');
+        Route::delete('/configurations/{configuration}', [WorkspaceController::class, 'destroy'])->name('configuration.destroy');
+        Route::patch('/configurations/{configuration}/status', [WorkspaceController::class, 'updateStatus'])->name('configuration.status');
+        Route::get('/configurations/{configuration}/bom/pdf', [BomExportController::class, 'pdf'])->name('bom.pdf');
+        Route::get('/configurations/{configuration}/bom/excel', [BomExportController::class, 'excel'])->name('bom.excel');
     });
 
     // ── Legacy redirects ──────────────────────────────────────────────────────
     Route::prefix('catalog')->name('catalog.')->group(function () {
-        Route::get('/', fn() => redirect()->route('sales.catalog'))->name('index');
+        Route::get('/', fn () => redirect()->route('sales.catalog'))->name('index');
         Route::get('/category/{category:slug}', [CatalogController::class, 'category'])->name('category');
         Route::get('/family/{family:slug}', [CatalogController::class, 'family'])->name('family');
         Route::get('/product/{product:slug}', [CatalogController::class, 'product'])->name('product');
@@ -51,13 +73,13 @@ Route::middleware('auth')->group(function () {
     Route::prefix('configurator')->name('configurator.')->group(function () {
         Route::get('/configure/{product:slug}', [CatalogController::class, 'configure'])->name('configure');
         Route::get('/configuration/{ulid}', [CatalogController::class, 'show'])->name('show');
-        Route::get('/my-configurations', fn() => redirect()->route('sales.configurations'))->name('my-configurations');
-        Route::post('/configuration/{ulid}/quotation', [App\Http\Controllers\Configurator\QuotationController::class, 'store'])->name('quotation.store');
+        Route::get('/my-configurations', fn () => redirect()->route('sales.configurations'))->name('my-configurations');
+        Route::post('/configuration/{ulid}/quotation', [QuotationController::class, 'store'])->name('quotation.store');
     });
 });
 
 // ── Admin Panel ───────────────────────────────────────────────────────────────
-Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:super_admin|product_manager'])->group(function () {
 
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -68,88 +90,91 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
     Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->name('products.destroy');
 
     // Categories / Families
-    Route::delete('/categories/batch', [App\Http\Controllers\Admin\CategoryController::class, 'batchDestroy'])->name('categories.batch-destroy');
-    Route::resource('categories', App\Http\Controllers\Admin\CategoryController::class);
-    Route::delete('/families/batch', [App\Http\Controllers\Admin\FamilyController::class, 'batchDestroy'])->name('families.batch-destroy');
-    Route::resource('families', App\Http\Controllers\Admin\FamilyController::class);
+    Route::delete('/categories/batch', [CategoryController::class, 'batchDestroy'])->name('categories.batch-destroy');
+    Route::resource('categories', CategoryController::class);
+    Route::delete('/families/batch', [FamilyController::class, 'batchDestroy'])->name('families.batch-destroy');
+    Route::resource('families', FamilyController::class);
 
     // Attributes & Options
-    Route::delete('/attributes/batch', [App\Http\Controllers\Admin\AttributeController::class, 'batchDestroy'])->name('attributes.batch-destroy');
-    Route::resource('attributes', App\Http\Controllers\Admin\AttributeController::class);
-    Route::delete('/attributes/{attribute}/options/{option}', [App\Http\Controllers\Admin\AttributeController::class, 'destroyOption'])->name('attributes.options.destroy');
+    Route::delete('/attributes/batch', [AttributeController::class, 'batchDestroy'])->name('attributes.batch-destroy');
+    Route::resource('attributes', AttributeController::class);
+    Route::delete('/attributes/{attribute}/options/{option}', [AttributeController::class, 'destroyOption'])->name('attributes.options.destroy');
 
     // Components
-    Route::delete('/components/batch', [App\Http\Controllers\Admin\ComponentController::class, 'batchDestroy'])->name('components.batch-destroy');
-    Route::resource('components', App\Http\Controllers\Admin\ComponentController::class);
+    Route::delete('/components/batch', [ComponentController::class, 'batchDestroy'])->name('components.batch-destroy');
+    Route::resource('components', ComponentController::class);
 
     // Rules
-    Route::get('/rules', [App\Http\Controllers\Admin\RuleController::class, 'index'])->name('rules.index');
-    Route::get('/rules/create/{product}', [App\Http\Controllers\Admin\RuleController::class, 'create'])->name('rules.create');
-    Route::post('/rules/store/{product}', [App\Http\Controllers\Admin\RuleController::class, 'store'])->name('rules.store');
-    Route::get('/rules/{rule}/edit', [App\Http\Controllers\Admin\RuleController::class, 'edit'])->name('rules.edit');
-    Route::put('/rules/{rule}', [App\Http\Controllers\Admin\RuleController::class, 'update'])->name('rules.update');
-    Route::delete('/rules/{rule}', [App\Http\Controllers\Admin\RuleController::class, 'destroy'])->name('rules.destroy');
+    Route::get('/rules', [RuleController::class, 'index'])->name('rules.index');
+    Route::get('/rules/create/{product}', [RuleController::class, 'create'])->name('rules.create');
+    Route::post('/rules/store/{product}', [RuleController::class, 'store'])->name('rules.store');
+    Route::get('/rules/{rule}/edit', [RuleController::class, 'edit'])->name('rules.edit');
+    Route::put('/rules/{rule}', [RuleController::class, 'update'])->name('rules.update');
+    Route::delete('/rules/{rule}', [RuleController::class, 'destroy'])->name('rules.destroy');
 
     // Compatibility
-    Route::get('/compatibility', [App\Http\Controllers\Admin\CompatibilityController::class, 'index'])->name('compatibility.index');
-    Route::get('/compatibility/create', [App\Http\Controllers\Admin\CompatibilityController::class, 'create'])->name('compatibility.create');
-    Route::post('/compatibility', [App\Http\Controllers\Admin\CompatibilityController::class, 'store'])->name('compatibility.store');
-    Route::delete('/compatibility/{rule}', [App\Http\Controllers\Admin\CompatibilityController::class, 'destroy'])->name('compatibility.destroy');
+    Route::get('/compatibility', [CompatibilityController::class, 'index'])->name('compatibility.index');
+    Route::get('/compatibility/create', [CompatibilityController::class, 'create'])->name('compatibility.create');
+    Route::post('/compatibility', [CompatibilityController::class, 'store'])->name('compatibility.store');
+    Route::delete('/compatibility/{rule}', [CompatibilityController::class, 'destroy'])->name('compatibility.destroy');
 
     // BOM Rules
-    Route::get('/bom', [App\Http\Controllers\Admin\BomController::class, 'index'])->name('bom.index');
-    Route::get('/bom/create/{product}', [App\Http\Controllers\Admin\BomController::class, 'create'])->name('bom.create');
-    Route::post('/bom/store/{product}', [App\Http\Controllers\Admin\BomController::class, 'store'])->name('bom.store');
-    Route::get('/bom/{rule}/edit', [App\Http\Controllers\Admin\BomController::class, 'edit'])->name('bom.edit');
-    Route::delete('/bom/{rule}', [App\Http\Controllers\Admin\BomController::class, 'destroy'])->name('bom.destroy');
+    Route::get('/bom', [BomController::class, 'index'])->name('bom.index');
+    Route::get('/bom/create/{product}', [BomController::class, 'create'])->name('bom.create');
+    Route::post('/bom/store/{product}', [BomController::class, 'store'])->name('bom.store');
+    Route::get('/bom/{rule}/edit', [BomController::class, 'edit'])->name('bom.edit');
+    Route::delete('/bom/{rule}', [BomController::class, 'destroy'])->name('bom.destroy');
 
     // Part Numbers
-    Route::get('/part-numbers', [App\Http\Controllers\Admin\PartNumberController::class, 'index'])->name('part-numbers.index');
-    Route::get('/part-numbers/create/{product}', [App\Http\Controllers\Admin\PartNumberController::class, 'create'])->name('part-numbers.create');
-    Route::post('/part-numbers/store/{product}', [App\Http\Controllers\Admin\PartNumberController::class, 'store'])->name('part-numbers.store');
-    Route::get('/part-numbers/{pattern}/edit', [App\Http\Controllers\Admin\PartNumberController::class, 'edit'])->name('part-numbers.edit');
-    Route::put('/part-numbers/{pattern}', [App\Http\Controllers\Admin\PartNumberController::class, 'update'])->name('part-numbers.update');
-    Route::delete('/part-numbers/{pattern}', [App\Http\Controllers\Admin\PartNumberController::class, 'destroy'])->name('part-numbers.destroy');
+    Route::get('/part-numbers', [PartNumberController::class, 'index'])->name('part-numbers.index');
+    Route::get('/part-numbers/create/{product}', [PartNumberController::class, 'create'])->name('part-numbers.create');
+    Route::post('/part-numbers/store/{product}', [PartNumberController::class, 'store'])->name('part-numbers.store');
+    Route::get('/part-numbers/{pattern}/edit', [PartNumberController::class, 'edit'])->name('part-numbers.edit');
+    Route::put('/part-numbers/{pattern}', [PartNumberController::class, 'update'])->name('part-numbers.update');
+    Route::delete('/part-numbers/{pattern}', [PartNumberController::class, 'destroy'])->name('part-numbers.destroy');
 
     // Pricing
-    Route::get('/pricing', [App\Http\Controllers\Admin\PricingController::class, 'index'])->name('pricing.index');
-    Route::get('/pricing/lists/create', [App\Http\Controllers\Admin\PricingController::class, 'createList'])->name('pricing.lists.create');
-    Route::post('/pricing/lists', [App\Http\Controllers\Admin\PricingController::class, 'storeList'])->name('pricing.lists.store');
-    Route::get('/pricing/lists/{priceList}/edit', [App\Http\Controllers\Admin\PricingController::class, 'editList'])->name('pricing.lists.edit');
-    Route::put('/pricing/lists/{priceList}', [App\Http\Controllers\Admin\PricingController::class, 'updateList'])->name('pricing.lists.update');
+    Route::get('/pricing', [PricingController::class, 'index'])->name('pricing.index');
+    Route::get('/pricing/lists/create', [PricingController::class, 'createList'])->name('pricing.lists.create');
+    Route::post('/pricing/lists', [PricingController::class, 'storeList'])->name('pricing.lists.store');
+    Route::get('/pricing/lists/{priceList}/edit', [PricingController::class, 'editList'])->name('pricing.lists.edit');
+    Route::put('/pricing/lists/{priceList}', [PricingController::class, 'updateList'])->name('pricing.lists.update');
 
     // Configurations
     Route::get('/configurations', function () {
-        $configurations = \App\Models\ConfigurationSession::with(['product', 'user'])->latest()->paginate(20);
+        $configurations = ConfigurationSession::with(['product', 'user'])->latest()->paginate(20);
+
         return view('admin.configurations.index', compact('configurations'));
     })->name('configurations.index');
 
     // Quotations
     Route::get('/quotations', function () {
-        $quotations = \App\Models\QuotationRequest::with(['configuration.product'])->latest()->paginate(20);
+        $quotations = QuotationRequest::with(['configuration.product'])->latest()->paginate(20);
+
         return view('admin.quotations.index', compact('quotations'));
     })->name('quotations.index');
-    Route::patch('/quotations/{quotation}/status', [App\Http\Controllers\Admin\QuotationAdminController::class, 'updateStatus'])->name('quotations.status');
+    Route::patch('/quotations/{quotation}/status', [QuotationAdminController::class, 'updateStatus'])->name('quotations.status');
 
     // Users
-    Route::resource('users', App\Http\Controllers\Admin\UserController::class);
-    Route::patch('/users/{user}/toggle-active', [App\Http\Controllers\Admin\UserController::class, 'toggleActive'])->name('users.toggle-active');
-    Route::post('/users/{user}/reset-password', [App\Http\Controllers\Admin\UserController::class, 'resetPassword'])->name('users.reset-password');
+    Route::resource('users', UserController::class);
+    Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+    Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
 
     // Roles
-    Route::get('/roles', [App\Http\Controllers\Admin\RoleController::class, 'index'])->name('roles.index');
-    Route::get('/roles/create', [App\Http\Controllers\Admin\RoleController::class, 'create'])->name('roles.create');
-    Route::post('/roles', [App\Http\Controllers\Admin\RoleController::class, 'store'])->name('roles.store');
-    Route::get('/roles/{role}/edit', [App\Http\Controllers\Admin\RoleController::class, 'edit'])->name('roles.edit');
-    Route::put('/roles/{role}', [App\Http\Controllers\Admin\RoleController::class, 'update'])->name('roles.update');
+    Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
+    Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+    Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
+    Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
 
     // Audit Logs
     Route::get('/audit-logs', function () {
-        $logs = \App\Models\AuditLog::with('user')->latest()->paginate(50);
+        $logs = AuditLog::with('user')->latest()->paginate(50);
+
         return view('admin.audit-logs.index', compact('logs'));
     })->name('audit-logs.index');
 
     // Settings
-    Route::get('/settings', [App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('settings.index');
-    Route::post('/settings', [App\Http\Controllers\Admin\SettingsController::class, 'update'])->name('settings.update');
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
 });

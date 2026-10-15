@@ -13,9 +13,17 @@ class ProductList extends Component
     use WithPagination;
 
     public string $search = '';
+
     public string $statusFilter = '';
+
     public string $categoryFilter = '';
+
     public string $familyFilter = '';
+
+    public function mount(): void
+    {
+        abort_unless(auth()->check() && auth()->user()->hasAnyRole(['super_admin', 'product_manager']), 403);
+    }
 
     public function updatingSearch(): void
     {
@@ -26,14 +34,14 @@ class ProductList extends Component
     {
         $products = Product::query()
             ->with(['family.category'])
-            ->when($this->search, fn($q) => $q->where(function ($q) {
+            ->when($this->search, fn ($q) => $q->where(function ($q) {
                 $q->where('name', 'like', "%{$this->search}%")
-                  ->orWhere('code', 'like', "%{$this->search}%")
-                  ->orWhere('sku', 'like', "%{$this->search}%");
+                    ->orWhere('code', 'like', "%{$this->search}%")
+                    ->orWhere('sku', 'like', "%{$this->search}%");
             }))
-            ->when($this->statusFilter, fn($q) => $q->where('status', $this->statusFilter))
-            ->when($this->categoryFilter, fn($q) => $q->whereHas('family', fn($q) => $q->where('product_category_id', $this->categoryFilter)))
-            ->when($this->familyFilter, fn($q) => $q->where('product_family_id', $this->familyFilter))
+            ->when($this->statusFilter, fn ($q) => $q->where('status', $this->statusFilter))
+            ->when($this->categoryFilter, fn ($q) => $q->whereHas('family', fn ($q) => $q->where('product_category_id', $this->categoryFilter)))
+            ->when($this->familyFilter, fn ($q) => $q->where('product_family_id', $this->familyFilter))
             ->orderBy('name')
             ->paginate(20);
 

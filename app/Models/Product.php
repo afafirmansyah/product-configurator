@@ -2,19 +2,35 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\ProductPrice;
 
 class Product extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'product_family_id', 'name', 'slug', 'code', 'sku', 'internal_part_number',
-        'manufacturer', 'short_description', 'long_description', 'applications',
-        'features', 'image', 'base_price', 'currency', 'status', 'version',
-        'effective_date', 'expiry_date', 'is_configurable', 'sort_order',
+        'product_family_id',
+        'name',
+        'slug',
+        'code',
+        'sku',
+        'internal_part_number',
+        'manufacturer',
+        'short_description',
+        'long_description',
+        'applications',
+        'features',
+        'image',
+        'base_price',
+        'currency',
+        'status',
+        'version',
+        'effective_date',
+        'expiry_date',
+        'is_configurable',
+        'sort_order',
     ];
 
     protected $casts = [
@@ -39,8 +55,10 @@ class Product extends Model
         return $this->hasOneThrough(
             ProductCategory::class,
             ProductFamily::class,
-            'id', 'id',
-            'product_family_id', 'product_category_id'
+            'id',
+            'id',
+            'product_family_id',
+            'product_category_id'
         );
     }
 
