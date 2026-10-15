@@ -7,7 +7,7 @@ A web-based product configuration system built with Laravel 13, Livewire 4, and 
 - **PHP** 8.4 / **Laravel** 13
 - **Livewire** 4 (reactive UI without writing JavaScript)
 - **Tailwind CSS** 4 (utility-first styling via Vite)
-- **MySQL** (primary database)
+- **MySQL 8+** for development and production; **SQLite** is the zero-config fallback and is used by the automated test suite
 - **Spatie Laravel Permission** (role-based access control)
 - **DomPDF** (PDF export)
 - **PhpSpreadsheet** (Excel export)
@@ -34,14 +34,15 @@ A web-based product configuration system built with Laravel 13, Livewire 4, and 
 - Real-time rule evaluation (visibility, required fields, warnings)
 - Live price calculation
 - Configuration summary and part number generation
-- Quotation request submission
+- Quotation request submission with lifecycle email/in-app notifications
+- Quotation PDF export and queued BOM export (PDF/Excel) with signed download links
 
 ## Requirements
 
-- PHP >= 8.3
+- PHP >= 8.4 (see the `php` constraint in `composer.json`)
 - Composer
 - Node.js >= 18
-- MySQL 8+
+- MySQL 8+ (or SQLite for a zero-config local/test setup)
 
 ## Installation
 
@@ -83,6 +84,7 @@ Key variables to configure in `.env`:
 ```env
 APP_URL=http://product-configurator.test
 
+# MySQL (development/production)
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -90,6 +92,14 @@ DB_DATABASE=product_configurator
 DB_USERNAME=root
 DB_PASSWORD=
 ```
+
+To run against SQLite instead (the framework default fallback, and what the test
+suite uses), set `DB_CONNECTION=sqlite` and create `database/database.sqlite`.
+
+Asynchronous features — queued BOM exports and quotation lifecycle
+notifications — require a running queue worker (`php artisan queue:work`, started
+automatically by `composer run dev`). In local development set `MAIL_MAILER=log`
+so notification emails are written to the log instead of being sent.
 
 ## Testing
 
