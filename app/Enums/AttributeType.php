@@ -18,7 +18,7 @@ enum AttributeType: string
 
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::Text => 'Text',
             self::Integer => 'Integer',
             self::Decimal => 'Decimal',

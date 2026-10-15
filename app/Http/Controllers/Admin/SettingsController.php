@@ -10,11 +10,12 @@ class SettingsController extends Controller
     public function index()
     {
         $settings = [
-            'app_name'    => config('app.name'),
-            'app_url'     => config('app.url'),
+            'app_name' => config('app.name'),
+            'app_url' => config('app.url'),
             'default_currency' => 'EUR',
             'quotation_validity_days' => 30,
         ];
+
         return view('admin.settings.index', compact('settings'));
     }
 

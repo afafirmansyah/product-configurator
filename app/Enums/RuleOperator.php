@@ -19,7 +19,7 @@ enum RuleOperator: string
 
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::Equals => 'equals',
             self::NotEquals => 'not equals',
             self::In => 'is one of',
@@ -37,19 +37,19 @@ enum RuleOperator: string
 
     public function evaluate(mixed $actual, mixed $expected): bool
     {
-        return match($this) {
+        return match ($this) {
             self::Equals => (string) $actual === (string) $expected,
             self::NotEquals => (string) $actual !== (string) $expected,
             self::In => in_array($actual, is_array($expected) ? $expected : explode(',', $expected)),
-            self::NotIn => !in_array($actual, is_array($expected) ? $expected : explode(',', $expected)),
+            self::NotIn => ! in_array($actual, is_array($expected) ? $expected : explode(',', $expected)),
             self::GreaterThan => is_numeric($actual) && is_numeric($expected) && $actual > $expected,
             self::GreaterThanOrEqual => is_numeric($actual) && is_numeric($expected) && $actual >= $expected,
             self::LessThan => is_numeric($actual) && is_numeric($expected) && $actual < $expected,
             self::LessThanOrEqual => is_numeric($actual) && is_numeric($expected) && $actual <= $expected,
             self::Contains => str_contains((string) $actual, (string) $expected),
-            self::NotContains => !str_contains((string) $actual, (string) $expected),
+            self::NotContains => ! str_contains((string) $actual, (string) $expected),
             self::IsEmpty => empty($actual),
-            self::IsNotEmpty => !empty($actual),
+            self::IsNotEmpty => ! empty($actual),
         };
     }
 }

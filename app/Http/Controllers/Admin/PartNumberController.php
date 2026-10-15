@@ -12,19 +12,21 @@ class PartNumberController extends Controller
     public function index()
     {
         $patterns = PartNumberPattern::with('product')->latest()->paginate(20);
+
         return view('admin.part-numbers.index', compact('patterns'));
     }
 
     public function create(Product $product)
     {
         $product->load('attributes');
+
         return view('admin.part-numbers.create', compact('product'));
     }
 
     public function store(Request $request, Product $product)
     {
         $request->validate([
-            'name'     => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'segments' => 'required|array|min:1',
         ]);
 
@@ -32,9 +34,9 @@ class PartNumberController extends Controller
 
         PartNumberPattern::create([
             'product_id' => $product->id,
-            'name'       => $request->name,
-            'segments'   => $request->segments,
-            'is_active'  => true,
+            'name' => $request->name,
+            'segments' => $request->segments,
+            'is_active' => true,
         ]);
 
         return redirect()->route('admin.part-numbers.index')->with('success', 'Part number pattern saved.');
@@ -43,18 +45,19 @@ class PartNumberController extends Controller
     public function edit(PartNumberPattern $pattern)
     {
         $pattern->load('product.attributes');
+
         return view('admin.part-numbers.edit', compact('pattern'));
     }
 
     public function update(Request $request, PartNumberPattern $pattern)
     {
         $request->validate([
-            'name'     => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'segments' => 'required|array|min:1',
         ]);
 
         $pattern->update([
-            'name'     => $request->name,
+            'name' => $request->name,
             'segments' => $request->segments,
         ]);
 
@@ -64,6 +67,7 @@ class PartNumberController extends Controller
     public function destroy(PartNumberPattern $pattern)
     {
         $pattern->delete();
+
         return back()->with('success', 'Pattern deleted.');
     }
 }

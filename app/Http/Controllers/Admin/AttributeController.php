@@ -13,6 +13,7 @@ class AttributeController extends Controller
     public function index()
     {
         $attributes = Attribute::withCount('options')->orderBy('name')->paginate(20);
+
         return view('admin.attributes.index', compact('attributes'));
     }
 
@@ -26,7 +27,7 @@ class AttributeController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:100|unique:attributes',
-            'type' => 'required|in:' . implode(',', array_column(AttributeType::cases(), 'value')),
+            'type' => 'required|in:'.implode(',', array_column(AttributeType::cases(), 'value')),
             'unit' => 'nullable|string|max:50',
             'description' => 'nullable|string',
             'is_global' => 'boolean',
@@ -41,6 +42,7 @@ class AttributeController extends Controller
     public function edit(Attribute $attribute)
     {
         $attribute->load('options');
+
         return view('admin.attributes.edit', [
             'attribute' => $attribute,
             'types' => AttributeType::cases(),
@@ -51,8 +53,8 @@ class AttributeController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:100|unique:attributes,code,' . $attribute->id,
-            'type' => 'required|in:' . implode(',', array_column(AttributeType::cases(), 'value')),
+            'code' => 'required|string|max:100|unique:attributes,code,'.$attribute->id,
+            'type' => 'required|in:'.implode(',', array_column(AttributeType::cases(), 'value')),
             'unit' => 'nullable|string|max:50',
             'description' => 'nullable|string',
             'is_global' => 'boolean',
@@ -64,7 +66,7 @@ class AttributeController extends Controller
         // Handle options if submitted
         if ($request->has('options')) {
             foreach ($request->input('options', []) as $optionData) {
-                if (!empty($optionData['name'])) {
+                if (! empty($optionData['name'])) {
                     AttributeOption::updateOrCreate(
                         ['attribute_id' => $attribute->id, 'code' => $optionData['code']],
                         array_merge($optionData, ['attribute_id' => $attribute->id])
@@ -79,6 +81,7 @@ class AttributeController extends Controller
     public function destroy(Attribute $attribute)
     {
         $attribute->delete();
+
         return redirect()->route('admin.attributes.index')->with('success', 'Attribute deleted.');
     }
 }

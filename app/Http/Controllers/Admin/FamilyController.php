@@ -13,12 +13,14 @@ class FamilyController extends Controller
     public function index()
     {
         $families = ProductFamily::with('category')->withCount('products')->orderBy('name')->paginate(20);
+
         return view('admin.families.index', compact('families'));
     }
 
     public function create()
     {
         $categories = ProductCategory::where('is_active', true)->orderBy('name')->get();
+
         return view('admin.families.create', compact('categories'));
     }
 
@@ -42,6 +44,7 @@ class FamilyController extends Controller
     public function edit(ProductFamily $family)
     {
         $categories = ProductCategory::where('is_active', true)->orderBy('name')->get();
+
         return view('admin.families.edit', compact('family', 'categories'));
     }
 
@@ -50,7 +53,7 @@ class FamilyController extends Controller
         $data = $request->validate([
             'product_category_id' => 'required|exists:product_categories,id',
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:100|unique:product_families,code,' . $family->id,
+            'code' => 'required|string|max:100|unique:product_families,code,'.$family->id,
             'description' => 'nullable|string',
             'sort_order' => 'integer|min:0',
             'is_active' => 'boolean',
@@ -65,6 +68,7 @@ class FamilyController extends Controller
     public function destroy(ProductFamily $family)
     {
         $family->delete();
+
         return redirect()->route('admin.families.index')->with('success', 'Family deleted.');
     }
 }

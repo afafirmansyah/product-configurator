@@ -12,7 +12,7 @@ enum ProductStatus: string
 
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::Draft => 'Draft',
             self::InReview => 'In Review',
             self::Approved => 'Approved',
@@ -23,7 +23,7 @@ enum ProductStatus: string
 
     public function color(): string
     {
-        return match($this) {
+        return match ($this) {
             self::Draft => 'gray',
             self::InReview => 'yellow',
             self::Approved => 'blue',

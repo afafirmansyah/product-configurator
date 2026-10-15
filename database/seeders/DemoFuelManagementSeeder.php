@@ -54,15 +54,15 @@ class DemoFuelManagementSeeder extends Seeder
 
         // ── Assign attributes to product ─────────────────────────────────────
         $steps = [
-            'system_type'    => ['step' => 'System Type',    'order' => 0, 'required' => true],
-            'tank_quantity'  => ['step' => 'System Type',    'order' => 1, 'required' => true],
-            'communication'  => ['step' => 'Communication',  'order' => 2, 'required' => true],
+            'system_type' => ['step' => 'System Type',    'order' => 0, 'required' => true],
+            'tank_quantity' => ['step' => 'System Type',    'order' => 1, 'required' => true],
+            'communication' => ['step' => 'Communication',  'order' => 2, 'required' => true],
             'flowmeter_type' => ['step' => 'Flowmeter',      'order' => 3, 'required' => true],
-            'rfid'           => ['step' => 'Accessories',    'order' => 4, 'required' => false],
-            'display'        => ['step' => 'Accessories',    'order' => 5, 'required' => false],
-            'power_supply'   => ['step' => 'Installation',   'order' => 6, 'required' => true],
-            'enclosure'      => ['step' => 'Installation',   'order' => 7, 'required' => true],
-            'installation'   => ['step' => 'Installation',   'order' => 8, 'required' => true],
+            'rfid' => ['step' => 'Accessories',    'order' => 4, 'required' => false],
+            'display' => ['step' => 'Accessories',    'order' => 5, 'required' => false],
+            'power_supply' => ['step' => 'Installation',   'order' => 6, 'required' => true],
+            'enclosure' => ['step' => 'Installation',   'order' => 7, 'required' => true],
+            'installation' => ['step' => 'Installation',   'order' => 8, 'required' => true],
         ];
 
         $syncData = [];
@@ -343,7 +343,9 @@ class DemoFuelManagementSeeder extends Seeder
             if ($rule->conditions()->count() === 0) {
                 foreach ($ruleDef['conditions'] as $i => $cond) {
                     $attr = $attrs[$cond['attribute']] ?? null;
-                    if (!$attr) continue;
+                    if (! $attr) {
+                        continue;
+                    }
                     RuleCondition::create([
                         'configuration_rule_id' => $rule->id,
                         'attribute_id' => $attr->id,
@@ -455,7 +457,9 @@ class DemoFuelManagementSeeder extends Seeder
             if ($rule->conditions()->count() === 0) {
                 foreach ($def['conditions'] as $cond) {
                     $attr = $attrs[$cond['attribute']] ?? null;
-                    if (!$attr) continue;
+                    if (! $attr) {
+                        continue;
+                    }
                     BomRuleCondition::create([
                         'bom_rule_id' => $rule->id,
                         'attribute_id' => $attr->id,
@@ -470,7 +474,9 @@ class DemoFuelManagementSeeder extends Seeder
             if ($rule->items()->count() === 0) {
                 foreach ($def['items'] as $item) {
                     $comp = $components[$item['component']] ?? null;
-                    if (!$comp) continue;
+                    if (! $comp) {
+                        continue;
+                    }
                     BomRuleItem::create([
                         'bom_rule_id' => $rule->id,
                         'component_id' => $comp->id,

@@ -11,7 +11,7 @@ class PartNumberService
     {
         $pattern = $product->partNumberPattern;
 
-        if (!$pattern) {
+        if (! $pattern) {
             return $product->code;
         }
 
@@ -27,8 +27,9 @@ class PartNumberService
                 // Find attribute by code
                 $attribute = $product->attributes()->where('code', $value)->first();
 
-                if (!$attribute) {
+                if (! $attribute) {
                     $parts[] = 'X';
+
                     continue;
                 }
 
@@ -36,6 +37,7 @@ class PartNumberService
 
                 if (empty($selectedValue)) {
                     $parts[] = $segment['default'] ?? 'X';
+
                     continue;
                 }
 

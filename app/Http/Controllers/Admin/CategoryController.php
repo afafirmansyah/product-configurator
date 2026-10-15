@@ -12,6 +12,7 @@ class CategoryController extends Controller
     public function index()
     {
         $categories = ProductCategory::withCount('families')->orderBy('sort_order')->paginate(20);
+
         return view('admin.categories.index', compact('categories'));
     }
 
@@ -45,7 +46,7 @@ class CategoryController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:100|unique:product_categories,code,' . $category->id,
+            'code' => 'required|string|max:100|unique:product_categories,code,'.$category->id,
             'description' => 'nullable|string',
             'sort_order' => 'integer|min:0',
             'is_active' => 'boolean',
@@ -60,6 +61,7 @@ class CategoryController extends Controller
     public function destroy(ProductCategory $category)
     {
         $category->delete();
+
         return redirect()->route('admin.categories.index')->with('success', 'Category deleted.');
     }
 }

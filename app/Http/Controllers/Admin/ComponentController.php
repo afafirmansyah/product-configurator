@@ -12,12 +12,14 @@ class ComponentController extends Controller
     public function index()
     {
         $components = Component::with('category')->orderBy('name')->paginate(20);
+
         return view('admin.components.index', compact('components'));
     }
 
     public function create()
     {
         $categories = ComponentCategory::where('is_active', true)->orderBy('name')->get();
+
         return view('admin.components.create', compact('categories'));
     }
 
@@ -39,19 +41,21 @@ class ComponentController extends Controller
         ]);
 
         Component::create($data);
+
         return redirect()->route('admin.components.index')->with('success', 'Component created.');
     }
 
     public function edit(Component $component)
     {
         $categories = ComponentCategory::where('is_active', true)->orderBy('name')->get();
+
         return view('admin.components.edit', compact('component', 'categories'));
     }
 
     public function update(Request $request, Component $component)
     {
         $data = $request->validate([
-            'code' => 'required|string|max:100|unique:components,code,' . $component->id,
+            'code' => 'required|string|max:100|unique:components,code,'.$component->id,
             'name' => 'required|string|max:255',
             'component_category_id' => 'nullable|exists:component_categories,id',
             'description' => 'nullable|string',
@@ -66,12 +70,14 @@ class ComponentController extends Controller
         ]);
 
         $component->update($data);
+
         return redirect()->route('admin.components.index')->with('success', 'Component updated.');
     }
 
     public function destroy(Component $component)
     {
         $component->delete();
+
         return redirect()->route('admin.components.index')->with('success', 'Component deleted.');
     }
 }

@@ -12,7 +12,7 @@ class CatalogController extends Controller
 {
     public function index()
     {
-        $categories = ProductCategory::with(['families.products' => fn($q) => $q->published()])
+        $categories = ProductCategory::with(['families.products' => fn ($q) => $q->published()])
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
@@ -22,13 +22,15 @@ class CatalogController extends Controller
 
     public function category(ProductCategory $category)
     {
-        $category->load(['families.products' => fn($q) => $q->published()]);
+        $category->load(['families.products' => fn ($q) => $q->published()]);
+
         return view('configurator.catalog.category', compact('category'));
     }
 
     public function family(ProductFamily $family)
     {
-        $family->load(['category', 'products' => fn($q) => $q->published()]);
+        $family->load(['category', 'products' => fn ($q) => $q->published()]);
+
         return view('configurator.catalog.family', compact('family'));
     }
 
@@ -36,12 +38,14 @@ class CatalogController extends Controller
     {
         abort_unless($product->isPublished(), 404);
         $product->load(['family.category', 'productAttributes.attribute.options']);
+
         return view('configurator.catalog.product', compact('product'));
     }
 
     public function configure(Product $product)
     {
         abort_unless($product->isPublished(), 404);
+
         return view('configurator.configure', compact('product'));
     }
 

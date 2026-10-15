@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AttributeOption;
-use App\Models\OptionPrice;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\ProductPrice;
@@ -15,6 +13,7 @@ class PricingController extends Controller
     public function index()
     {
         $priceLists = PriceList::withCount(['productPrices', 'optionPrices'])->orderBy('name')->get();
+
         return view('admin.pricing.index', compact('priceLists'));
     }
 
@@ -26,13 +25,13 @@ class PricingController extends Controller
     public function storeList(Request $request)
     {
         $data = $request->validate([
-            'name'       => 'required|string|max:255',
-            'code'       => 'required|string|max:100|unique:price_lists',
-            'currency'   => 'required|string|size:3',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:100|unique:price_lists',
+            'currency' => 'required|string|size:3',
             'is_default' => 'boolean',
-            'is_active'  => 'boolean',
+            'is_active' => 'boolean',
             'valid_from' => 'nullable|date',
-            'valid_to'   => 'nullable|date|after:valid_from',
+            'valid_to' => 'nullable|date|after:valid_from',
         ]);
 
         if ($request->boolean('is_default')) {
@@ -55,13 +54,13 @@ class PricingController extends Controller
     public function updateList(Request $request, PriceList $priceList)
     {
         $data = $request->validate([
-            'name'       => 'required|string|max:255',
-            'code'       => 'required|string|max:100|unique:price_lists,code,' . $priceList->id,
-            'currency'   => 'required|string|size:3',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:100|unique:price_lists,code,'.$priceList->id,
+            'currency' => 'required|string|size:3',
             'is_default' => 'boolean',
-            'is_active'  => 'boolean',
+            'is_active' => 'boolean',
             'valid_from' => 'nullable|date',
-            'valid_to'   => 'nullable|date',
+            'valid_to' => 'nullable|date',
         ]);
 
         if ($request->boolean('is_default')) {
