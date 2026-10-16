@@ -20,6 +20,7 @@ class ConfiguratorService
         private readonly BomGeneratorService $bom,
         private readonly PricingService $pricing,
         private readonly PartNumberService $partNumber,
+        private readonly AttributeValueValidator $attributeValueValidator,
     ) {}
 
     public function evaluate(Product $product, array $selections, bool $debug = false): ConfigurationResult
@@ -80,8 +81,13 @@ class ConfiguratorService
             $ruleEffects['visible_attributes'],
         )));
 
+        // Required: product pivot flag, attribute validation_rules.required, then rule effects.
         $requiredIds = array_unique(array_merge(
             $product->productAttributes->where('is_required', true)->pluck('attribute_id')->toArray(),
+            $product->productAttributes
+                ->filter(fn ($productAttribute): bool => (bool) ($productAttribute->attribute?->validation_rules['required'] ?? false))
+                ->pluck('attribute_id')
+                ->toArray(),
             $ruleEffects['required_attributes'],
         ));
         $requiredIds = array_values(array_diff($requiredIds, $ruleEffects['optional_attributes']));
@@ -149,10 +155,14 @@ class ConfiguratorService
         );
     }
 
+    /**
+     * @return array{valid: bool, errors: list<string>, warnings: list<string>, attribute_errors: array<int, list<string>>}
+     */
     private function validate(Product $product, array $selections, array $visibleIds, array $requiredIds, array $disabledOptions): array
     {
         $errors = [];
         $warnings = [];
+        $attributeErrors = [];
 
         // Check required visible attributes are filled
         foreach ($requiredIds as $attrId) {
@@ -176,10 +186,27 @@ class ConfiguratorService
             }
         }
 
+        // Check visible, filled values against each attribute's validation_rules.
+        foreach ($product->productAttributes as $productAttribute) {
+            $attribute = $productAttribute->attribute;
+
+            if ($attribute === null || ! in_array($attribute->id, $visibleIds)) {
+                continue;
+            }
+
+            $valueErrors = $this->attributeValueValidator->errorsFor($attribute, $selections[$attribute->id] ?? null);
+
+            if ($valueErrors !== []) {
+                $attributeErrors[$attribute->id] = $valueErrors;
+                $errors = array_merge($errors, $valueErrors);
+            }
+        }
+
         return [
             'valid' => empty($errors),
             'errors' => $errors,
             'warnings' => $warnings,
+            'attribute_errors' => $attributeErrors,
         ];
     }
 

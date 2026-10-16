@@ -97,7 +97,13 @@ class WorkspaceController extends Controller
 
         $bomItems = $configuration->bom_snapshot ?? [];
 
-        return view('sales.configuration-detail', compact('configuration', 'result', 'bomItems', 'selections'));
+        // The stored snapshot is never regenerated implicitly; flag when the live product
+        // definition / BOM rules would now produce different rows.
+        $bomOutdated = $result !== null
+            && $configuration->bom_snapshot !== null
+            && $result->bom != $configuration->bom_snapshot;
+
+        return view('sales.configuration-detail', compact('configuration', 'result', 'bomItems', 'selections', 'bomOutdated'));
     }
 
     public function duplicate(ConfigurationSession $configuration)
@@ -111,6 +117,7 @@ class WorkspaceController extends Controller
         $new->status = 'draft';
         $new->bom_status = 'pending';
         $new->bom_revision = 0;
+        $new->version = '1';
         $new->user_id = auth()->id();
         $new->save();
 

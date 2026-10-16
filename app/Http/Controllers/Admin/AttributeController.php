@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\AttributeType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AttributeRequest;
 use App\Models\Attribute;
 use App\Models\AttributeOption;
-use Illuminate\Http\Request;
 
 class AttributeController extends Controller
 {
@@ -22,19 +22,9 @@ class AttributeController extends Controller
         return view('admin.attributes.create', ['types' => AttributeType::cases()]);
     }
 
-    public function store(Request $request)
+    public function store(AttributeRequest $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:100|unique:attributes',
-            'type' => 'required|in:'.implode(',', array_column(AttributeType::cases(), 'value')),
-            'unit' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
-            'is_global' => 'boolean',
-            'is_active' => 'boolean',
-        ]);
-
-        $attribute = Attribute::create($data);
+        $attribute = Attribute::create($request->attributeData());
 
         return redirect()->route('admin.attributes.edit', $attribute)->with('success', 'Attribute created.');
     }
@@ -49,19 +39,9 @@ class AttributeController extends Controller
         ]);
     }
 
-    public function update(Request $request, Attribute $attribute)
+    public function update(AttributeRequest $request, Attribute $attribute)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:100|unique:attributes,code,'.$attribute->id,
-            'type' => 'required|in:'.implode(',', array_column(AttributeType::cases(), 'value')),
-            'unit' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
-            'is_global' => 'boolean',
-            'is_active' => 'boolean',
-        ]);
-
-        $attribute->update($data);
+        $attribute->update($request->attributeData());
 
         // Handle options if submitted
         if ($request->has('options')) {

@@ -63,10 +63,15 @@
                         @endphp
 
                         @if ($isVisible)
-                            @php $helpId = 'help-'.$attrId; @endphp
+                            @php
+                                $helpId = 'help-' . $attrId;
+                                $fieldErrors = $result['validation']['attribute_errors'][$attrId] ?? [];
+                                $errorId = 'error-' . $attrId;
+                                $describedBy = trim(($pa->help_text ? $helpId : '') . ' ' . ($fieldErrors ? $errorId : ''));
+                            @endphp
                             @if (in_array($attr->type, ['select', 'radio']))
                                 <fieldset wire:key="attr-{{ $attrId }}"
-                                    @if ($pa->help_text) aria-describedby="{{ $helpId }}" @endif>
+                                    @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif>
                                     <legend class="block text-sm font-medium text-gray-900 mb-1">
                                         {{ $attr->name }}
                                         @if ($isRequired || $pa->is_required)
@@ -129,6 +134,13 @@
                                             </label>
                                         @endforeach
                                     </div>
+                                    @if ($fieldErrors)
+                                        <ul id="{{ $errorId }}" role="alert" class="mt-1 space-y-0.5 text-xs text-red-600">
+                                            @foreach ($fieldErrors as $fieldError)
+                                                <li>{{ $fieldError }}</li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
                                 </fieldset>
                             @else
                                 <div wire:key="attr-{{ $attrId }}">
@@ -152,8 +164,13 @@
                                     @if ($attr->type === 'integer')
                                         <input type="number" id="attr-input-{{ $attrId }}"
                                             wire:model.live.debounce.400ms="selections.{{ $attrId }}"
-                                            @if ($pa->help_text) aria-describedby="{{ $helpId }}" @endif
-                                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif
+                                            @if ($fieldErrors) aria-invalid="true" @endif
+                                            @class([
+                                                'w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                                                'border-red-500' => $fieldErrors,
+                                                'border-gray-300' => !$fieldErrors,
+                                            ])>
                                     @elseif($attr->type === 'boolean')
                                         <label class="flex items-center gap-3 cursor-pointer">
                                             <input type="checkbox" id="attr-input-{{ $attrId }}"
@@ -164,8 +181,20 @@
                                     @else
                                         <input type="text" id="attr-input-{{ $attrId }}"
                                             wire:model.live.debounce.400ms="selections.{{ $attrId }}"
-                                            @if ($pa->help_text) aria-describedby="{{ $helpId }}" @endif
-                                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif
+                                            @if ($fieldErrors) aria-invalid="true" @endif
+                                            @class([
+                                                'w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                                                'border-red-500' => $fieldErrors,
+                                                'border-gray-300' => !$fieldErrors,
+                                            ])>
+                                    @endif
+                                    @if ($fieldErrors)
+                                        <ul id="{{ $errorId }}" role="alert" class="mt-1 space-y-0.5 text-xs text-red-600">
+                                            @foreach ($fieldErrors as $fieldError)
+                                                <li>{{ $fieldError }}</li>
+                                            @endforeach
+                                        </ul>
                                     @endif
                                 </div>
                             @endif
@@ -256,25 +285,7 @@
                 @if ($result && count($result['bom']) > 0)
                     <div class="bg-white rounded-xl border border-gray-200 p-6">
                         <h3 class="font-semibold text-gray-900 mb-3">Bill of Materials</h3>
-                        <div class="space-y-2">
-                            @foreach ($result['bom'] as $item)
-                                <div class="flex items-center justify-between text-sm py-1 border-b border-gray-50"
-                                    style="padding-left: {{ ($item['level'] ?? 0) * 1.25 }}rem">
-                                    <div>
-                                        <span @class([
-                                            'text-gray-900',
-                                            'font-medium' => !($item['is_assembly'] ?? false),
-                                            'font-semibold' => $item['is_assembly'] ?? false,
-                                        ])>{{ $item['quantity'] }} ×
-                                            {{ $item['description'] ?? ($item['name'] ?? '') }}</span>
-                                        <span
-                                            class="text-gray-400 text-xs ml-2">{{ $item['part_number'] ?? ($item['code'] ?? '') }}</span>
-                                    </div>
-                                    <span
-                                        class="text-gray-600">{{ number_format((float) ($item['total_price'] ?? $item['unit_price'] * $item['quantity']), 0) }}</span>
-                                </div>
-                            @endforeach
-                        </div>
+                        <x-bom.tree :rows="$result['bom']" :show-pricing="true" label="Bill of materials" />
                     </div>
                 @endif
 

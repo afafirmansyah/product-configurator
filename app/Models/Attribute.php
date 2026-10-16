@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * Value validation applied by the configurator (App\Services\Configurator\AttributeValueValidator).
+ * Every key is optional; null means "no extra rules":
+ * - type: 'numeric' | 'integer' (integer also rejects non-whole numbers)
+ * - min / max: inclusive numeric bounds (either implies a numeric value)
+ * - required: true makes the attribute required wherever it is visible
+ *
+ * @property array{type?: 'numeric'|'integer', min?: int|float, max?: int|float, required?: bool}|null $validation_rules
+ */
 class Attribute extends Model
 {
     use HasFactory, SoftDeletes;

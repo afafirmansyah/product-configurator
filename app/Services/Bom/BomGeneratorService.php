@@ -382,11 +382,19 @@ class BomGeneratorService
      * The snapshot keeps every row (assemblies included); configuration_bom_items
      * receives only leaf rows (component_id !== null) with level-multiplied quantities.
      *
+     * Versioning: bom_revision increments on every generation. version is the
+     * configuration content revision (starts at '1') and increments only when a
+     * previous snapshot existed and the new rows differ from it. Editing products or
+     * BOM rules never touches a stored snapshot; it changes only through this method
+     * (i.e. when the user saves or regenerates the BOM).
+     *
      * @param  list<array<string, mixed>>  $bomItems
      * @param  list<string>  $warnings  Generation warnings (e.g. omitted computed-quantity lines) merged into validation_errors.warnings.
      */
     public function saveToSession(ConfigurationSession $session, array $bomItems, array $warnings = []): void
     {
+        $previousSnapshot = $session->bom_snapshot;
+
         // Delete existing BOM items
         $session->bomItems()->delete();
 
@@ -405,6 +413,12 @@ class BomGeneratorService
 
         $validation = $this->validate($bomItems);
         $validation['warnings'] = array_values(array_merge($validation['warnings'], $warnings));
+
+        // Loose comparison: the stored snapshot is JSON-decoded, so key order and
+        // numeric string/float representations may differ from freshly generated rows.
+        if ($previousSnapshot !== null && $previousSnapshot != $bomItems) {
+            $session->version = (string) ((int) $session->version + 1);
+        }
 
         $session->update([
             'bom_status' => $validation['valid'] ? 'generated' : 'failed',

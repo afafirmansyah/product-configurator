@@ -54,6 +54,14 @@
             <x-ui.alert type="danger" class="mb-4">{{ session('error') }}</x-ui.alert>
         @endif
 
+        {{-- Outdated BOM snapshot --}}
+        @if ($bomOutdated)
+            <x-ui.alert type="info" class="mb-4">
+                Product definition or BOM rules changed since this BOM was generated (rev
+                {{ $configuration->bom_revision }}). Generate BOM to update.
+            </x-ui.alert>
+        @endif
+
         {{-- BOM Validation Errors --}}
         @if ($configuration->validation_errors && !empty($configuration->validation_errors['errors']))
             <div class="mb-4 p-4 rounded-xl border" style="background:#fef2f2;border-color:#fecaca">
@@ -171,7 +179,7 @@
                 @endif
 
                 {{-- BOM --}}
-                <div class="card">
+                <div class="card" x-data="{ showStructure: false }">
                     <div class="card-header flex items-center justify-between">
                         <div>
                             <h2 class="text-sm font-semibold text-slate-700">Bill of Materials</h2>
@@ -182,10 +190,18 @@
                                 </p>
                             @endif
                         </div>
-                        @php $bomColors = ['pending'=>'gray','generated'=>'blue','validated'=>'green','failed'=>'red']; @endphp
-                        <x-ui.badge color="{{ $bomColors[$configuration->bom_status] ?? 'gray' }}">
-                            {{ ucfirst($configuration->bom_status) }}
-                        </x-ui.badge>
+                        <div class="flex items-center gap-2">
+                            @if (!empty($bomItems))
+                                <button type="button" class="btn btn-sm btn-ghost" @click="showStructure = !showStructure"
+                                    :aria-expanded="showStructure" aria-controls="bom-structure">
+                                    <span x-text="showStructure ? 'Hide structure' : 'Structure'">Structure</span>
+                                </button>
+                            @endif
+                            @php $bomColors = ['pending'=>'gray','generated'=>'blue','validated'=>'green','failed'=>'red']; @endphp
+                            <x-ui.badge color="{{ $bomColors[$configuration->bom_status] ?? 'gray' }}">
+                                {{ ucfirst($configuration->bom_status) }}
+                            </x-ui.badge>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         @if (empty($bomItems))
@@ -258,6 +274,12 @@
                             </div>
                         @endif
                     </div>
+                    @if (!empty($bomItems))
+                        <div id="bom-structure" x-show="showStructure" x-cloak class="border-t border-slate-100 p-4">
+                            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Structure</h3>
+                            <x-bom.tree :rows="$bomItems" :show-pricing="true" label="BOM structure" />
+                        </div>
+                    @endif
                 </div>
 
             </div>

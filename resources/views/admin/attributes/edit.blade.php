@@ -36,6 +36,38 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea name="description" rows="2" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ old('description', $attribute->description) }}</textarea>
             </div>
+            <fieldset class="border border-gray-200 rounded-lg p-4 space-y-3">
+                <legend class="px-1 text-sm font-medium text-gray-700">Validation</legend>
+                <p class="text-xs text-gray-400">Checked when a value is entered in the configurator. Leave blank for no extra rules.</p>
+                <div>
+                    <label for="validation-type" class="block text-xs font-medium text-gray-600 mb-1">Value type</label>
+                    <select id="validation-type" name="validation_rules[type]" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 @error('validation_rules.type') border-red-500 @enderror">
+                        <option value="">Any</option>
+                        <option value="numeric" @selected(old('validation_rules.type', $attribute->validation_rules['type'] ?? '') === 'numeric')>Number</option>
+                        <option value="integer" @selected(old('validation_rules.type', $attribute->validation_rules['type'] ?? '') === 'integer')>Whole number</option>
+                    </select>
+                    @error('validation_rules.type')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="validation-min" class="block text-xs font-medium text-gray-600 mb-1">Minimum</label>
+                        <input type="number" step="any" id="validation-min" name="validation_rules[min]" value="{{ old('validation_rules.min', $attribute->validation_rules['min'] ?? '') }}"
+                               class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 @error('validation_rules.min') border-red-500 @enderror">
+                        @error('validation_rules.min')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label for="validation-max" class="block text-xs font-medium text-gray-600 mb-1">Maximum</label>
+                        <input type="number" step="any" id="validation-max" name="validation_rules[max]" value="{{ old('validation_rules.max', $attribute->validation_rules['max'] ?? '') }}"
+                               class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 @error('validation_rules.max') border-red-500 @enderror">
+                        @error('validation_rules.max')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="hidden" name="validation_rules[required]" value="0">
+                    <input type="checkbox" name="validation_rules[required]" value="1" @checked(old('validation_rules.required', $attribute->validation_rules['required'] ?? false)) class="rounded">
+                    Always required when visible
+                </label>
+            </fieldset>
             <div class="flex items-center gap-4">
                 <label class="flex items-center gap-2 text-sm text-gray-700">
                     <input type="checkbox" name="is_global" value="1" {{ $attribute->is_global ? 'checked' : '' }} class="rounded">
