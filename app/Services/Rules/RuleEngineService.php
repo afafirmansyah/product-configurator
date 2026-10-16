@@ -23,7 +23,7 @@ class RuleEngineService
      *     set_values: array<int|string, mixed>,
      *     set_price: string|int|float|null,
      *     set_part_number: string|null,
-     *     added_components: list<array{component_id: int, quantity: int}>,
+     *     added_components: list<array{component_id: int, quantity: float}>,
      *     removed_components: list<int>,
      *     warnings: list<string>,
      *     errors: list<string>,
@@ -47,7 +47,7 @@ class RuleEngineService
             'set_values' => [],        // [attribute_id => forced value]
             'set_price' => null,       // override total price (major units string/number)
             'set_part_number' => null, // override configuration code
-            'added_components' => [],  // [['component_id' => int, 'quantity' => int]]
+            'added_components' => [],  // [['component_id' => int, 'quantity' => float]]
             'removed_components' => [], // [component_id, ...]
             'warnings' => [],
             'errors' => [],
@@ -95,7 +95,8 @@ class RuleEngineService
             'set_part_number' => $effects['set_part_number'] = $action->value,
             'add_component' => $effects['added_components'][] = [
                 'component_id' => (int) $action->target_id,
-                'quantity' => 1,
+                // The action value is the quantity; anything non-positive or non-numeric means 1.
+                'quantity' => is_numeric($action->value) && (float) $action->value > 0 ? (float) $action->value : 1.0,
             ],
             'remove_component' => $effects['removed_components'][] = (int) $action->target_id,
             'warn' => $effects['warnings'][] = $action->value,

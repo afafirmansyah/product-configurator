@@ -36,6 +36,7 @@ class ConfiguratorService
             'bomRules.conditions.attribute',
             'bomRules.items.component.category',
             'bomRules.items.valueSets.options',
+            'bomRules.items.quantityAttribute',
             'compatibilityRules.attribute',
             'compatibilityRules.option',
             'compatibilityRules.targetAttribute.options',
@@ -84,8 +85,8 @@ class ConfiguratorService
         $requiredIds = array_values(array_diff($requiredIds, $ruleEffects['optional_attributes']));
 
         // 5. Generate BOM, then apply rule-driven component additions/removals.
-        $bomItems = $this->bom->generate($product, $selections);
-        $bomItems = $this->applyComponentEffects($bomItems, $ruleEffects);
+        $bomResult = $this->bom->generateWithWarnings($product, $selections);
+        $bomItems = $this->applyComponentEffects($bomResult['items'], $ruleEffects);
 
         // 6. Calculate pricing, applying any rule-driven total override (in cents).
         $pricingResult = $this->pricing->calculate($product, $selections);
@@ -102,6 +103,11 @@ class ConfiguratorService
 
         // 8. Validate
         $validation = $this->validate($product, $selections, $visibleIds, $requiredIds, $disabledOptions);
+
+        // BOM lines omitted by computed quantities are warnings, never errors. They are
+        // kept separately so save paths can persist them alongside the BOM snapshot.
+        $validation['bom_warnings'] = $bomResult['warnings'];
+        $validation['warnings'] = array_merge($validation['warnings'], $bomResult['warnings']);
 
         // 9. Build technical specs from selections
         $techSpecs = $this->buildTechSpecs($product, $selections);

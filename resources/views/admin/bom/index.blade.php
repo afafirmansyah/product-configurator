@@ -73,6 +73,9 @@
                             @foreach($rule->items->take(3) as $item)
                                 <div class="text-xs text-slate-600">
                                     {{ $item->quantity }}× {{ $item->component->name }}
+                                    @if($item->quantity_mode && $item->quantity_mode !== \App\Enums\QuantityMode::Fixed)
+                                        <x-ui.badge color="orange">qty: {{ $item->quantity_mode->value }}</x-ui.badge>
+                                    @endif
                                     @if($item->valueSets->isNotEmpty())
                                         <x-ui.badge color="purple">{{ $item->valueSets->count() }} value set(s)</x-ui.badge>
                                     @endif

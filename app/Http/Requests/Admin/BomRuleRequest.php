@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\QuantityMode;
 use App\Models\AttributeOption;
 use App\Models\BomRule;
 use App\Models\Product;
+use App\Services\Bom\QuantityFormula;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class BomRuleRequest extends FormRequest
@@ -38,6 +41,10 @@ class BomRuleRequest extends FormRequest
             'items.*.component_id' => 'required|exists:components,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.is_mandatory' => 'boolean',
+            'items.*.quantity_mode' => ['nullable', Rule::enum(QuantityMode::class)],
+            'items.*.quantity_attribute_id' => 'nullable|required_if:items.*.quantity_mode,attribute|exists:attributes,id',
+            'items.*.quantity_formula' => 'nullable|required_if:items.*.quantity_mode,formula|string|max:255',
+            'items.*.quantity_round_up' => 'boolean',
             'items.*.value_sets' => 'nullable|array',
             'items.*.value_sets.*.name' => 'nullable|string|max:255',
             'items.*.value_sets.*.option_ids' => 'required|array|min:1',
@@ -46,7 +53,9 @@ class BomRuleRequest extends FormRequest
     }
 
     /**
-     * Reject value-set options whose attribute is not attached to the rule's product.
+     * Reject value-set options whose attribute is not attached to the rule's product,
+     * quantity attributes not attached to it, and quantity formulas with invalid
+     * syntax or codes of attributes that are not on the product.
      *
      * @return list<callable(Validator): void>
      */
@@ -99,7 +108,56 @@ class BomRuleRequest extends FormRequest
                     }
                 }
             },
+            $this->validateComputedQuantities(...),
         ];
+    }
+
+    /**
+     * Check quantity attributes and formulas of computed-quantity items against the product.
+     */
+    private function validateComputedQuantities(Validator $validator): void
+    {
+        $product = $this->ruleProduct();
+        $items = $this->input('items');
+
+        if ($product === null || ! is_array($items)) {
+            return;
+        }
+
+        $computedItems = collect($items)->filter(fn (mixed $item): bool => is_array($item)
+            && in_array($item['quantity_mode'] ?? null, [QuantityMode::Attribute->value, QuantityMode::Formula->value], true));
+
+        if ($computedItems->isEmpty()) {
+            return;
+        }
+
+        /** @var array<int, string> $productAttributeCodes */
+        $productAttributeCodes = $product->attributes()->pluck('attributes.code', 'attributes.id')->all();
+
+        foreach ($computedItems as $itemIndex => $item) {
+            if ($item['quantity_mode'] === QuantityMode::Attribute->value) {
+                $attributeId = $item['quantity_attribute_id'] ?? null;
+
+                if (is_numeric($attributeId) && ! array_key_exists((int) $attributeId, $productAttributeCodes)) {
+                    $validator->errors()->add(
+                        "items.{$itemIndex}.quantity_attribute_id",
+                        'The quantity attribute must be assigned to this product.',
+                    );
+                }
+
+                continue;
+            }
+
+            $formula = $item['quantity_formula'] ?? null;
+
+            if (! is_string($formula) || trim($formula) === '') {
+                continue;
+            }
+
+            foreach (app(QuantityFormula::class)->validate($formula, array_values($productAttributeCodes)) as $message) {
+                $validator->errors()->add("items.{$itemIndex}.quantity_formula", $message);
+            }
+        }
     }
 
     /**

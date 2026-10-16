@@ -101,6 +101,23 @@ test('add_component appends an extra BOM row', function () {
     expect($result->bom[0]['unit_price'])->toBe('50.00');
 });
 
+test('add_component uses a positive numeric action value as the quantity', function (?string $value, float $expectedQuantity) {
+    ['product' => $product] = makeConfiguredProduct();
+
+    $component = Component::factory()->create(['sales_price' => '50.00']);
+
+    makeRuleWithAction($product, 'add_component', 'component', $component->id, $value);
+
+    $result = app(ConfiguratorService::class)->evaluate($product->fresh(), []);
+
+    expect($result->bom[0]['quantity'])->toBe($expectedQuantity);
+})->with([
+    'numeric value' => ['4', 4.0],
+    'no value' => [null, 1.0],
+    'non-numeric value' => ['many', 1.0],
+    'non-positive value' => ['0', 1.0],
+]);
+
 test('remove_component drops a BOM row produced by a BOM rule', function () {
     ['product' => $product] = makeConfiguredProduct();
 

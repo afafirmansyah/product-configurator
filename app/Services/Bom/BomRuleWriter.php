@@ -2,6 +2,7 @@
 
 namespace App\Services\Bom;
 
+use App\Enums\QuantityMode;
 use App\Models\BomRule;
 use App\Models\BomRuleCondition;
 use App\Models\BomRuleItem;
@@ -15,7 +16,9 @@ use Illuminate\Support\Str;
  * Both create() and update() run inside a single transaction. update() replaces
  * the rule's conditions and items wholesale (delete + recreate) so the stored
  * rule always mirrors the submitted form. Item value sets cascade with their
- * item and are rewritten from the submitted data.
+ * item and are rewritten from the submitted data. A line keeps only the
+ * quantity settings of its mode: the attribute for "attribute", the formula for
+ * "formula"; no mode is stored as null, which the resolver treats as fixed.
  *
  * @phpstan-type BomRuleData array{
  *     name: string,
@@ -25,6 +28,10 @@ use Illuminate\Support\Str;
  *     items: list<array{
  *         component_id: int|string,
  *         quantity: int|float|string,
+ *         quantity_mode?: string|null,
+ *         quantity_attribute_id?: int|string|null,
+ *         quantity_formula?: string|null,
+ *         quantity_round_up?: bool|int|string|null,
  *         is_mandatory?: bool|int|string|null,
  *         value_sets?: list<array{name?: string|null, option_ids: list<int|string>}>|null
  *     }>
@@ -104,10 +111,16 @@ class BomRuleWriter
         }
 
         foreach ($data['items'] as $item) {
+            $quantityMode = QuantityMode::tryFrom((string) ($item['quantity_mode'] ?? ''));
+
             $ruleItem = BomRuleItem::create([
                 'bom_rule_id' => $rule->id,
                 'component_id' => $item['component_id'],
                 'quantity' => $item['quantity'],
+                'quantity_mode' => $quantityMode,
+                'quantity_attribute_id' => $quantityMode === QuantityMode::Attribute ? $item['quantity_attribute_id'] ?? null : null,
+                'quantity_formula' => $quantityMode === QuantityMode::Formula ? $item['quantity_formula'] ?? null : null,
+                'quantity_round_up' => filter_var($item['quantity_round_up'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'is_mandatory' => filter_var($item['is_mandatory'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ]);
 

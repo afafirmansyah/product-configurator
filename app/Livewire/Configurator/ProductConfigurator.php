@@ -112,7 +112,7 @@ class ProductConfigurator extends Component
             }
 
             // Single persistence path: writes BOM rows, snapshot, status and revision.
-            app(BomGeneratorService::class)->saveToSession($session, $result->bom);
+            app(BomGeneratorService::class)->saveToSession($session, $result->bom, $result->validation['bom_warnings'] ?? []);
 
             return $session;
         });

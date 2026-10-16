@@ -47,6 +47,7 @@
     {{-- Actions --}}
     <div class="bg-white rounded-xl border border-gray-200 p-6">
         <h3 class="font-semibold text-gray-900 mb-3">THEN (Actions)</h3>
+        <p class="text-xs text-gray-500 mb-3">For add_component actions the value is the quantity to add (defaults to 1).</p>
         @if($rule->actions->count() > 0)
             <div class="space-y-2">
                 @foreach($rule->actions as $action)

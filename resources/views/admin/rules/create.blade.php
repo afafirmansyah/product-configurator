@@ -84,6 +84,7 @@
                     </div>
                 </div>
                 <button type="button" onclick="addAction()" class="mt-2 text-sm text-blue-600 hover:underline">+ Add Action</button>
+                <p class="mt-1 text-xs text-gray-500">For add_component actions the value is the quantity to add (defaults to 1).</p>
             </div>
 
             <div class="flex items-center gap-2">

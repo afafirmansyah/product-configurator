@@ -5,6 +5,8 @@
 --}}
 @php
     $rule = $rule ?? null;
+    $quantityModes = \App\Enums\QuantityMode::cases();
+    $attributeCodes = $attributes->map(fn($attr) => '{' . $attr->code . '}')->implode(', ');
 
     $initialConditions = old(
         'conditions',
@@ -30,6 +32,10 @@
                     fn($item) => [
                         'component_id' => (string) $item->component_id,
                         'quantity' => (string) $item->quantity,
+                        'quantity_mode' => $item->quantity_mode?->value ?? 'fixed',
+                        'quantity_attribute_id' => (string) ($item->quantity_attribute_id ?? ''),
+                        'quantity_formula' => (string) ($item->quantity_formula ?? ''),
+                        'quantity_round_up' => (bool) $item->quantity_round_up,
                         'is_mandatory' => (bool) $item->is_mandatory,
                         'value_sets' => $item->valueSets
                             ->map(
@@ -48,7 +54,18 @@
                 )
                 ->values()
                 ->all()
-            : [['component_id' => '', 'quantity' => '1', 'is_mandatory' => true, 'value_sets' => []]],
+            : [
+                [
+                    'component_id' => '',
+                    'quantity' => '1',
+                    'quantity_mode' => 'fixed',
+                    'quantity_attribute_id' => '',
+                    'quantity_formula' => '',
+                    'quantity_round_up' => false,
+                    'is_mandatory' => true,
+                    'value_sets' => [],
+                ],
+            ],
     );
 
     $initialItems = collect($initialItems)
@@ -56,6 +73,10 @@
             fn($item) => [
                 'component_id' => (string) ($item['component_id'] ?? ''),
                 'quantity' => (string) ($item['quantity'] ?? '1'),
+                'quantity_mode' => (string) ($item['quantity_mode'] ?? '') ?: 'fixed',
+                'quantity_attribute_id' => (string) ($item['quantity_attribute_id'] ?? ''),
+                'quantity_formula' => (string) ($item['quantity_formula'] ?? ''),
+                'quantity_round_up' => filter_var($item['quantity_round_up'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'is_mandatory' => filter_var($item['is_mandatory'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'value_sets' => collect(is_array($item['value_sets'] ?? null) ? $item['value_sets'] : [])
                     ->map(
@@ -166,7 +187,7 @@
         <div class="flex items-center justify-between mb-2">
             <span class="form-label mb-0">Components to Add *</span>
             <button type="button"
-                @click="items.push({ component_id: '', quantity: '1', is_mandatory: true, value_sets: [] })"
+                @click="items.push({ component_id: '', quantity: '1', quantity_mode: 'fixed', quantity_attribute_id: '', quantity_formula: '', quantity_round_up: false, is_mandatory: true, value_sets: [] })"
                 class="btn btn-ghost btn-sm text-blue-600">
                 <x-ui.icon name="plus" class="w-3.5 h-3.5" />
                 Add Component
@@ -197,6 +218,38 @@
                             </button>
                         </div>
                     </div>
+
+                    {{-- Quantity mode --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                        <select :name="`items[${i}][quantity_mode]`" x-model="item.quantity_mode" class="form-select"
+                            aria-label="Quantity mode">
+                            @foreach ($quantityModes as $quantityMode)
+                                <option value="{{ $quantityMode->value }}">Qty: {{ $quantityMode->label() }}</option>
+                            @endforeach
+                        </select>
+                        <select x-show="item.quantity_mode === 'attribute'"
+                            :name="`items[${i}][quantity_attribute_id]`" x-model="item.quantity_attribute_id"
+                            class="form-select" aria-label="Quantity attribute">
+                            <option value="">Multiply by attribute...</option>
+                            @foreach ($attributes as $attr)
+                                <option value="{{ $attr->id }}">{{ $attr->name }}</option>
+                            @endforeach
+                        </select>
+                        <input x-show="item.quantity_mode === 'formula'" type="text"
+                            :name="`items[${i}][quantity_formula]`" x-model="item.quantity_formula" maxlength="255"
+                            class="form-input font-mono" placeholder="{length} / 2 + 1"
+                            aria-label="Quantity formula">
+                        <label x-show="item.quantity_mode !== 'fixed'"
+                            class="flex items-center gap-1.5 text-sm text-slate-600">
+                            <input type="checkbox" :name="`items[${i}][quantity_round_up]`" value="1"
+                                x-model="item.quantity_round_up" class="w-3.5 h-3.5 rounded">
+                            Round up
+                        </label>
+                    </div>
+                    <p x-show="item.quantity_mode === 'attribute'" class="text-xs text-slate-400">Quantity = Qty × the
+                        numeric value selected for the attribute.</p>
+                    <p x-show="item.quantity_mode === 'formula'" class="text-xs text-slate-400">Use numbers, + - * /
+                        and parentheses. Available codes: {{ $attributeCodes ?: 'none' }}.</p>
 
                     {{-- Attribute value sets --}}
                     <div class="space-y-2">

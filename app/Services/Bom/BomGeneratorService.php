@@ -7,6 +7,7 @@ use App\Models\BomRuleItem;
 use App\Models\BomRuleItemValueSet;
 use App\Models\ConfigurationSession;
 use App\Models\Product;
+use App\Models\ProductAttribute;
 use App\Services\Rules\ConditionEvaluator;
 use App\Support\Money;
 
@@ -15,21 +16,51 @@ class BomGeneratorService
     public function __construct(
         private readonly ConditionEvaluator $conditionEvaluator,
         private readonly SelectionValues $selectionValues,
+        private readonly QuantityResolver $quantityResolver,
     ) {}
 
+    /**
+     * Generate the BOM rows for the selections (backward-compatible entry point).
+     *
+     * @param  array<int|string, mixed>  $selections
+     * @return list<array<string, mixed>>
+     */
     public function generate(Product $product, array $selections): array
+    {
+        return $this->generateWithWarnings($product, $selections)['items'];
+    }
+
+    /**
+     * Generate the BOM rows plus warnings for lines omitted because their
+     * computed quantity could not be resolved to a positive number.
+     *
+     * @param  array<int|string, mixed>  $selections
+     * @return array{items: list<array<string, mixed>>, warnings: list<string>}
+     */
+    public function generateWithWarnings(Product $product, array $selections): array
     {
         // Consume the eager-loaded relation when ConfiguratorService provided it;
         // fall back to a constrained load (the bomRules relation already filters
         // is_active and orders by sort_order) only when used standalone.
         $product->loadMissing([
+            'productAttributes.attribute',
             'bomRules.conditions.attribute',
             'bomRules.items.component.category',
             'bomRules.items.valueSets.options',
+            'bomRules.items.quantityAttribute',
         ]);
         $rules = $product->bomRules;
 
+        /** @var array<string, int> $attributeIdsByCode */
+        $attributeIdsByCode = $product->productAttributes
+            ->filter(fn (ProductAttribute $productAttribute): bool => $productAttribute->attribute !== null)
+            ->mapWithKeys(fn (ProductAttribute $productAttribute): array => [
+                $productAttribute->attribute->code => (int) $productAttribute->attribute_id,
+            ])
+            ->all();
+
         $bom = [];
+        $warnings = [];
         $itemNo = 1;
 
         foreach ($rules as $rule) {
@@ -45,15 +76,25 @@ class BomGeneratorService
                 $componentId = $item->component_id;
                 $component = $item->component;
 
+                $resolved = $this->quantityResolver->resolve($item, $selections, $attributeIdsByCode);
+
+                if ($resolved['quantity'] <= 0) {
+                    $warnings[] = "{$component->name}: ".($resolved['warning'] ?? 'Resolved quantity is not positive.');
+
+                    continue;
+                }
+
+                $lineQuantity = $resolved['quantity'];
+
                 if (isset($bom[$componentId])) {
-                    $quantity = (float) $bom[$componentId]['quantity'] + (float) $item->quantity;
+                    $quantity = (float) $bom[$componentId]['quantity'] + $lineQuantity;
                     $unitPriceCents = Money::toCents($bom[$componentId]['unit_price']);
 
                     $bom[$componentId]['quantity'] = $quantity;
                     $bom[$componentId]['total_price'] = Money::fromCents(Money::mulCents($unitPriceCents, $quantity));
                 } else {
                     $unitPriceCents = Money::toCents($component->sales_price);
-                    $totalPriceCents = Money::mulCents($unitPriceCents, (float) $item->quantity);
+                    $totalPriceCents = Money::mulCents($unitPriceCents, $lineQuantity);
 
                     $bom[$componentId] = [
                         'item_no' => str_pad($itemNo++, 2, '0', STR_PAD_LEFT),
@@ -65,7 +106,7 @@ class BomGeneratorService
                         'type' => $component->category?->name ?? 'Component',
                         'manufacturer' => $component->manufacturer,
                         'manufacturer_part_no' => $component->manufacturer_part_number,
-                        'quantity' => (float) $item->quantity,
+                        'quantity' => $lineQuantity,
                         'unit' => 'EA',
                         'unit_price' => Money::fromCents($unitPriceCents),
                         'cost' => Money::fromCents(Money::toCents($component->cost)),
@@ -79,7 +120,7 @@ class BomGeneratorService
             }
         }
 
-        return array_values($bom);
+        return ['items' => array_values($bom), 'warnings' => $warnings];
     }
 
     /**
@@ -146,7 +187,13 @@ class BomGeneratorService
         ];
     }
 
-    public function saveToSession(ConfigurationSession $session, array $bomItems): void
+    /**
+     * Persist the BOM rows, snapshot, status and revision on the session.
+     *
+     * @param  list<array<string, mixed>>  $bomItems
+     * @param  list<string>  $warnings  Generation warnings (e.g. omitted computed-quantity lines) merged into validation_errors.warnings.
+     */
+    public function saveToSession(ConfigurationSession $session, array $bomItems, array $warnings = []): void
     {
         // Delete existing BOM items
         $session->bomItems()->delete();
@@ -161,6 +208,7 @@ class BomGeneratorService
         }
 
         $validation = $this->validate($bomItems);
+        $validation['warnings'] = array_values(array_merge($validation['warnings'], $warnings));
 
         $session->update([
             'bom_status' => $validation['valid'] ? 'generated' : 'failed',
