@@ -101,7 +101,7 @@ class WorkspaceController extends Controller
         // definition / BOM rules would now produce different rows.
         $bomOutdated = $result !== null
             && $configuration->bom_snapshot !== null
-            && $result->bom != $configuration->bom_snapshot;
+            && $this->bomService->snapshotDiffers($configuration->bom_snapshot, $result->bom);
 
         return view('sales.configuration-detail', compact('configuration', 'result', 'bomItems', 'selections', 'bomOutdated'));
     }

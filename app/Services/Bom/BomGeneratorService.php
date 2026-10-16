@@ -377,6 +377,36 @@ class BomGeneratorService
     }
 
     /**
+     * Whether freshly generated rows differ from a stored BOM snapshot.
+     *
+     * Rows are compared loosely (the snapshot is JSON-decoded, so key order and
+     * numeric string/float representations may differ) and only on the keys the
+     * stored row has. Snapshots saved before rows gained the nesting keys (level,
+     * path, parent_path, is_assembly, product_id) are therefore not reported as
+     * changed merely because of those added keys.
+     *
+     * @param  array<int, mixed>  $snapshot
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public function snapshotDiffers(array $snapshot, array $rows): bool
+    {
+        $snapshot = array_values($snapshot);
+        $rows = array_values($rows);
+
+        if (count($snapshot) !== count($rows)) {
+            return true;
+        }
+
+        foreach ($snapshot as $index => $storedRow) {
+            if (! is_array($storedRow) || $storedRow != array_intersect_key($rows[$index], $storedRow)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Persist the BOM rows, snapshot, status and revision on the session.
      *
      * The snapshot keeps every row (assemblies included); configuration_bom_items
@@ -414,9 +444,7 @@ class BomGeneratorService
         $validation = $this->validate($bomItems);
         $validation['warnings'] = array_values(array_merge($validation['warnings'], $warnings));
 
-        // Loose comparison: the stored snapshot is JSON-decoded, so key order and
-        // numeric string/float representations may differ from freshly generated rows.
-        if ($previousSnapshot !== null && $previousSnapshot != $bomItems) {
+        if ($previousSnapshot !== null && $this->snapshotDiffers($previousSnapshot, $bomItems)) {
             $session->version = (string) ((int) $session->version + 1);
         }
 

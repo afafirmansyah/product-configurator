@@ -10,6 +10,7 @@ use App\Models\ConfigurationSession;
 use App\Models\Product;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Support\Arr;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -96,6 +97,28 @@ test('a stored BOM snapshot only changes, and bumps the version, when the user r
 
     expect($configuration->bom_revision)->toBe(3)
         ->and($configuration->version)->toBe('2');
+});
+
+test('a snapshot saved before rows had nesting keys is neither flagged outdated nor version-bumped', function () {
+    $this->actingAs($this->salesUser);
+    $configuration = versioningSaveConfiguration($this->product, $this->attribute, $this->option);
+
+    $legacySnapshot = array_map(
+        fn (array $row): array => Arr::except($row, ['level', 'path', 'parent_path', 'is_assembly', 'product_id']),
+        $configuration->bom_snapshot,
+    );
+    $configuration->update(['bom_snapshot' => $legacySnapshot]);
+
+    $this->get(route('sales.configuration.detail', $configuration))
+        ->assertOk()
+        ->assertDontSee('Product definition or BOM rules changed since this BOM was generated');
+
+    $this->post(route('sales.configuration.generate-bom', $configuration))->assertRedirect();
+    $configuration->refresh();
+
+    expect($configuration->bom_revision)->toBe(2)
+        ->and($configuration->version)->toBe('1')
+        ->and($configuration->bom_snapshot[0])->toHaveKey('level', 0);
 });
 
 test('a duplicated configuration starts again at version 1', function () {
