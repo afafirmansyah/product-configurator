@@ -129,7 +129,8 @@ class WorkspaceController extends Controller
         $configuration->load(['product', 'items']);
         $selections = $configuration->getSelectionsArray();
 
-        $bomItems = $this->bomService->generate($configuration->product, $selections);
+        // Persist the same rule-aware BOM (incl. add/remove component effects) as the configurator save path.
+        $bomItems = $this->configuratorService->evaluate($configuration->product, $selections)->bom;
         $this->bomService->saveToSession($configuration, $bomItems);
 
         return back()->with('success', 'BOM generated successfully. Revision '.$configuration->fresh()->bom_revision.'.');

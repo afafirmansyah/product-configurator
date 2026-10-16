@@ -120,6 +120,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:super_admin|pr
     Route::get('/compatibility', [CompatibilityController::class, 'index'])->name('compatibility.index');
     Route::get('/compatibility/create', [CompatibilityController::class, 'create'])->name('compatibility.create');
     Route::post('/compatibility', [CompatibilityController::class, 'store'])->name('compatibility.store');
+    Route::get('/compatibility/{rule}/edit', [CompatibilityController::class, 'edit'])->name('compatibility.edit');
+    Route::put('/compatibility/{rule}', [CompatibilityController::class, 'update'])->name('compatibility.update');
     Route::delete('/compatibility/{rule}', [CompatibilityController::class, 'destroy'])->name('compatibility.destroy');
 
     // BOM Rules
@@ -127,6 +129,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:super_admin|pr
     Route::get('/bom/create/{product}', [BomController::class, 'create'])->name('bom.create');
     Route::post('/bom/store/{product}', [BomController::class, 'store'])->name('bom.store');
     Route::get('/bom/{rule}/edit', [BomController::class, 'edit'])->name('bom.edit');
+    Route::put('/bom/{rule}', [BomController::class, 'update'])->name('bom.update');
     Route::delete('/bom/{rule}', [BomController::class, 'destroy'])->name('bom.destroy');
 
     // Part Numbers

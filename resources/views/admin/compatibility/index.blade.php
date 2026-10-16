@@ -85,12 +85,18 @@
                         </x-ui.badge>
                     </td>
                     <td>
-                        <button type="button"
-                            @click="$dispatch('open-modal', 'del-compat-{{ $rule->id }}')"
-                            class="btn btn-ghost btn-sm text-red-500 hover:text-red-600">
-                            <x-ui.icon name="trash" class="w-3.5 h-3.5"/>
-                            Delete
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <a href="{{ route('admin.compatibility.edit', $rule) }}" class="btn btn-ghost btn-sm">
+                                <x-ui.icon name="edit" class="w-3.5 h-3.5"/>
+                                Edit
+                            </a>
+                            <button type="button"
+                                @click="$dispatch('open-modal', 'del-compat-{{ $rule->id }}')"
+                                class="btn btn-ghost btn-sm text-red-500 hover:text-red-600">
+                                <x-ui.icon name="trash" class="w-3.5 h-3.5"/>
+                                Delete
+                            </button>
+                        </div>
                         <x-ui.confirm-modal
                             id="del-compat-{{ $rule->id }}"
                             title="Delete Compatibility Rule"

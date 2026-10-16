@@ -4,8 +4,10 @@ namespace App\Livewire\Configurator;
 
 use App\Models\ConfigurationSession;
 use App\Models\Product;
+use App\Services\Bom\BomGeneratorService;
 use App\Services\Configuration\ConfigurationNumberGenerator;
 use App\Services\Configurator\ConfiguratorService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -90,32 +92,30 @@ class ProductConfigurator extends Component
             return;
         }
 
-        $session = ConfigurationSession::create([
-            'ulid' => Str::ulid(),
-            'configuration_number' => app(ConfigurationNumberGenerator::class)->next(),
-            'product_id' => $this->product->id,
-            'user_id' => auth()->id(),
-            'status' => 'draft',
-            'total_price' => $result->pricing['total'],
-            'currency' => $result->pricing['currency'],
-            'configuration_code' => $result->configurationCode,
-        ]);
-
-        foreach ($this->selections as $attributeId => $value) {
-            $session->items()->create([
-                'attribute_id' => $attributeId,
-                'value' => $value,
+        $session = DB::transaction(function () use ($result): ConfigurationSession {
+            $session = ConfigurationSession::create([
+                'ulid' => Str::ulid(),
+                'configuration_number' => app(ConfigurationNumberGenerator::class)->next(),
+                'product_id' => $this->product->id,
+                'user_id' => auth()->id(),
+                'status' => 'draft',
+                'total_price' => $result->pricing['total'],
+                'currency' => $result->pricing['currency'],
+                'configuration_code' => $result->configurationCode,
             ]);
-        }
 
-        foreach ($result->bom as $item) {
-            $session->bomItems()->create([
-                'component_id' => $item['component_id'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'is_mandatory' => $item['is_mandatory'],
-            ]);
-        }
+            foreach ($this->selections as $attributeId => $value) {
+                $session->items()->create([
+                    'attribute_id' => $attributeId,
+                    'value' => $value,
+                ]);
+            }
+
+            // Single persistence path: writes BOM rows, snapshot, status and revision.
+            app(BomGeneratorService::class)->saveToSession($session, $result->bom);
+
+            return $session;
+        });
 
         $this->redirect(route('configurator.show', $session->ulid));
     }
