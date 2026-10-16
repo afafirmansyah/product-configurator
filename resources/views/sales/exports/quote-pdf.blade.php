@@ -129,7 +129,7 @@
         <tr>
             <td class="mono text-center">{{ $item['item_no'] ?? '—' }}</td>
             <td class="mono" style="font-size:8px">{{ $item['part_number'] ?? '—' }}</td>
-            <td><strong>{{ $item['description'] ?? '—' }}</strong></td>
+            <td style="padding-left: {{ 4 + ($item['level'] ?? 0) * 10 }}px"><strong>{{ $item['description'] ?? '—' }}</strong></td>
             <td class="text-center">{{ $item['quantity'] ?? '—' }}</td>
             @if($showPricing)
             <td class="text-right">{{ isset($item['unit_price']) && $item['unit_price'] > 0 ? number_format($item['unit_price'], 2) : '—' }}</td>

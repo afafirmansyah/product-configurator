@@ -15,6 +15,7 @@ class BomRuleItem extends Model
     protected $fillable = [
         'bom_rule_id',
         'component_id',
+        'child_product_id',
         'quantity',
         'quantity_mode',
         'quantity_attribute_id',
@@ -38,6 +39,14 @@ class BomRuleItem extends Model
     public function component(): BelongsTo
     {
         return $this->belongsTo(Component::class);
+    }
+
+    /**
+     * Configurable product expanded as a sub-assembly; exclusive with component_id.
+     */
+    public function childProduct(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'child_product_id');
     }
 
     /**

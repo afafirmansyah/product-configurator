@@ -210,12 +210,18 @@
                                     </thead>
                                     <tbody>
                                         @foreach ($bomItems as $item)
-                                            <tr>
+                                            @php $isAssembly = (bool) ($item['is_assembly'] ?? false); @endphp
+                                            <tr @class(['bg-slate-50' => $isAssembly])>
                                                 <td class="font-mono text-xs text-slate-400">{{ $item['item_no'] }}</td>
                                                 <td class="font-mono text-xs font-semibold text-slate-700">
                                                     {{ $item['part_number'] ?? '—' }}</td>
-                                                <td>
-                                                    <div class="text-sm text-slate-800">{{ $item['description'] }}</div>
+                                                <td style="padding-left: {{ 1 + ($item['level'] ?? 0) * 1.25 }}rem">
+                                                    <div @class(['text-sm text-slate-800', 'font-semibold' => $isAssembly])>
+                                                        {{ $item['description'] }}
+                                                        @if ($isAssembly)
+                                                            <x-ui.badge color="blue">Assembly</x-ui.badge>
+                                                        @endif
+                                                    </div>
                                                     @if ($item['long_description'])
                                                         <div class="text-xs text-slate-400">
                                                             {{ Str::limit($item['long_description'], 60) }}</div>
@@ -238,7 +244,7 @@
                                     <tfoot>
                                         <tr class="bg-slate-50">
                                             <td colspan="7" class="text-xs font-semibold text-slate-600 px-4 py-2">
-                                                {{ count($bomItems) }} items
+                                                {{ count(array_filter($bomItems, fn($row) => !($row['is_assembly'] ?? false))) }} items
                                             </td>
                                             <td class="text-right text-xs font-semibold text-slate-600 px-4 py-2">Total
                                             </td>

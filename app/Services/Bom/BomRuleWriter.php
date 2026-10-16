@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
  * item and are rewritten from the submitted data. A line keeps only the
  * quantity settings of its mode: the attribute for "attribute", the formula for
  * "formula"; no mode is stored as null, which the resolver treats as fixed.
+ * A line references either a component or a sub-assembly child product, never both.
  *
  * @phpstan-type BomRuleData array{
  *     name: string,
@@ -26,7 +27,8 @@ use Illuminate\Support\Str;
  *     is_active?: bool|int|string|null,
  *     conditions?: list<array{attribute_id?: int|string|null, operator?: string|null, value?: string|null}>,
  *     items: list<array{
- *         component_id: int|string,
+ *         component_id?: int|string|null,
+ *         child_product_id?: int|string|null,
  *         quantity: int|float|string,
  *         quantity_mode?: string|null,
  *         quantity_attribute_id?: int|string|null,
@@ -115,7 +117,8 @@ class BomRuleWriter
 
             $ruleItem = BomRuleItem::create([
                 'bom_rule_id' => $rule->id,
-                'component_id' => $item['component_id'],
+                'component_id' => filled($item['component_id'] ?? null) ? $item['component_id'] : null,
+                'child_product_id' => filled($item['component_id'] ?? null) ? null : ($item['child_product_id'] ?? null),
                 'quantity' => $item['quantity'],
                 'quantity_mode' => $quantityMode,
                 'quantity_attribute_id' => $quantityMode === QuantityMode::Attribute ? $item['quantity_attribute_id'] ?? null : null,

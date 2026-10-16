@@ -3,9 +3,11 @@
 namespace App\Http\Requests\Admin;
 
 use App\Enums\QuantityMode;
+use App\Exceptions\BomStructureException;
 use App\Models\AttributeOption;
 use App\Models\BomRule;
 use App\Models\Product;
+use App\Services\Bom\BomStructureValidator;
 use App\Services\Bom\QuantityFormula;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,7 +40,8 @@ class BomRuleRequest extends FormRequest
             'conditions.*.operator' => 'required|string',
             'conditions.*.value' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.component_id' => 'required|exists:components,id',
+            'items.*.component_id' => 'nullable|required_without:items.*.child_product_id|prohibits:items.*.child_product_id|exists:components,id',
+            'items.*.child_product_id' => 'nullable|exists:products,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.is_mandatory' => 'boolean',
             'items.*.quantity_mode' => ['nullable', Rule::enum(QuantityMode::class)],
@@ -109,7 +112,57 @@ class BomRuleRequest extends FormRequest
                 }
             },
             $this->validateComputedQuantities(...),
+            $this->validateSubAssemblies(...),
         ];
+    }
+
+    /**
+     * Reject sub-assembly lines that reference the rule's own product, a product whose
+     * attributes are not a subset of the parent's, or one that would create a cycle
+     * or exceed the maximum BOM depth.
+     */
+    private function validateSubAssemblies(Validator $validator): void
+    {
+        $product = $this->ruleProduct();
+        $items = $this->input('items');
+
+        if ($product === null || ! is_array($items)) {
+            return;
+        }
+
+        $childIds = collect($items)
+            ->map(fn (mixed $item): mixed => is_array($item) ? $item['child_product_id'] ?? null : null)
+            ->filter(fn (mixed $childId): bool => is_numeric($childId));
+
+        if ($childIds->isEmpty()) {
+            return;
+        }
+
+        $children = Product::whereKey($childIds->map(fn (mixed $childId): int => (int) $childId)->unique()->values())
+            ->get()
+            ->keyBy('id');
+        $structureValidator = app(BomStructureValidator::class);
+
+        foreach ($childIds as $itemIndex => $childId) {
+            $child = $children->get((int) $childId);
+
+            if ($child === null) {
+                continue;
+            }
+
+            if ($child->id === $product->id) {
+                $validator->errors()->add("items.{$itemIndex}.child_product_id", 'A product cannot be a sub-assembly of itself.');
+
+                continue;
+            }
+
+            try {
+                $structureValidator->assertEligible($product, $child);
+                $structureValidator->assertNoCycle($product, $child);
+            } catch (BomStructureException $exception) {
+                $validator->errors()->add("items.{$itemIndex}.child_product_id", $exception->getMessage());
+            }
+        }
     }
 
     /**

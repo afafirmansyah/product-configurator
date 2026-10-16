@@ -258,14 +258,20 @@
                         <h3 class="font-semibold text-gray-900 mb-3">Bill of Materials</h3>
                         <div class="space-y-2">
                             @foreach ($result['bom'] as $item)
-                                <div class="flex items-center justify-between text-sm py-1 border-b border-gray-50">
+                                <div class="flex items-center justify-between text-sm py-1 border-b border-gray-50"
+                                    style="padding-left: {{ ($item['level'] ?? 0) * 1.25 }}rem">
                                     <div>
-                                        <span class="font-medium text-gray-900">{{ $item['quantity'] }} ×
-                                            {{ $item['name'] }}</span>
-                                        <span class="text-gray-400 text-xs ml-2">{{ $item['code'] }}</span>
+                                        <span @class([
+                                            'text-gray-900',
+                                            'font-medium' => !($item['is_assembly'] ?? false),
+                                            'font-semibold' => $item['is_assembly'] ?? false,
+                                        ])>{{ $item['quantity'] }} ×
+                                            {{ $item['description'] ?? ($item['name'] ?? '') }}</span>
+                                        <span
+                                            class="text-gray-400 text-xs ml-2">{{ $item['part_number'] ?? ($item['code'] ?? '') }}</span>
                                     </div>
                                     <span
-                                        class="text-gray-600">{{ number_format($item['unit_price'] * $item['quantity'], 0) }}</span>
+                                        class="text-gray-600">{{ number_format((float) ($item['total_price'] ?? $item['unit_price'] * $item['quantity']), 0) }}</span>
                                 </div>
                             @endforeach
                         </div>

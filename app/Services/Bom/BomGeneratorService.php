@@ -2,6 +2,7 @@
 
 namespace App\Services\Bom;
 
+use App\Exceptions\BomStructureException;
 use App\Models\AttributeOption;
 use App\Models\BomRuleItem;
 use App\Models\BomRuleItemValueSet;
@@ -11,8 +12,45 @@ use App\Models\ProductAttribute;
 use App\Services\Rules\ConditionEvaluator;
 use App\Support\Money;
 
+/**
+ * The single BOM generator for flat and nested (multi-level) BOMs.
+ *
+ * Row shape: generate() returns a FLAT depth-first list. Besides the component
+ * fields every row has level (0 = top), path ('01', '01.02'), parent_path
+ * (null on top-level rows), is_assembly and product_id (set on assembly rows).
+ * Top-level item_no stays '01', '02', ... so flat BOMs are unchanged apart from
+ * the added keys; nested rows use their path as item_no. BomTree::nest() turns
+ * the list into a tree for display.
+ *
+ * Sub-assemblies: a BOM line with child_product_id expands the configurable
+ * child product. The child's selections are the parent's selections for shared
+ * attribute ids, falling back to the child's product_attributes.default_value.
+ * Child quantities are multiplied by the assembly quantity at every level.
+ * Cycles and more than configurator.bom.max_depth levels raise
+ * BomStructureException.
+ *
+ * Assembly pricing: an assembly row has unit_price, total_price and cost of 0
+ * and an informational rollup_total (sum of its descendant leaf totals); the
+ * child product's base_price is not added. Summing total_price over all rows
+ * therefore equals the sum over the leaf rows and nothing is counted twice.
+ * Only leaf rows (component_id !== null) are persisted to configuration_bom_items.
+ */
 class BomGeneratorService
 {
+    /**
+     * Relations each product in the BOM tree needs for generation.
+     *
+     * @var list<string>
+     */
+    private const PRODUCT_RELATIONS = [
+        'productAttributes.attribute',
+        'bomRules.conditions.attribute',
+        'bomRules.items.component.category',
+        'bomRules.items.childProduct',
+        'bomRules.items.valueSets.options',
+        'bomRules.items.quantityAttribute',
+    ];
+
     public function __construct(
         private readonly ConditionEvaluator $conditionEvaluator,
         private readonly SelectionValues $selectionValues,
@@ -24,6 +62,8 @@ class BomGeneratorService
      *
      * @param  array<int|string, mixed>  $selections
      * @return list<array<string, mixed>>
+     *
+     * @throws BomStructureException
      */
     public function generate(Product $product, array $selections): array
     {
@@ -36,20 +76,30 @@ class BomGeneratorService
      *
      * @param  array<int|string, mixed>  $selections
      * @return array{items: list<array<string, mixed>>, warnings: list<string>}
+     *
+     * @throws BomStructureException on a sub-assembly cycle or too many levels.
      */
     public function generateWithWarnings(Product $product, array $selections): array
     {
-        // Consume the eager-loaded relation when ConfiguratorService provided it;
-        // fall back to a constrained load (the bomRules relation already filters
-        // is_active and orders by sort_order) only when used standalone.
-        $product->loadMissing([
-            'productAttributes.attribute',
-            'bomRules.conditions.attribute',
-            'bomRules.items.component.category',
-            'bomRules.items.valueSets.options',
-            'bomRules.items.quantityAttribute',
-        ]);
-        $rules = $product->bomRules;
+        $warnings = [];
+        $items = $this->buildRows($product, $selections, 1.0, 0, null, [$product->id], $warnings);
+
+        return ['items' => $items, 'warnings' => $warnings];
+    }
+
+    /**
+     * Build the depth-first rows of one product's BOM level.
+     *
+     * @param  array<int|string, mixed>  $selections
+     * @param  list<int>  $visited  Product ids from the top product down to $product.
+     * @param  list<string>  $warnings
+     * @return list<array<string, mixed>>
+     */
+    private function buildRows(Product $product, array $selections, float $multiplier, int $level, ?string $parentPath, array $visited, array &$warnings): array
+    {
+        // Consume the eager-loaded relations when ConfiguratorService provided them;
+        // the bomRules relation already filters is_active and orders by sort_order.
+        $product->loadMissing(self::PRODUCT_RELATIONS);
 
         /** @var array<string, int> $attributeIdsByCode */
         $attributeIdsByCode = $product->productAttributes
@@ -59,11 +109,11 @@ class BomGeneratorService
             ])
             ->all();
 
-        $bom = [];
-        $warnings = [];
-        $itemNo = 1;
+        /** @var array<string, array{row: array<string, mixed>, children: list<array<string, mixed>>}> $entries */
+        $entries = [];
+        $index = 1;
 
-        foreach ($rules as $rule) {
+        foreach ($product->bomRules as $rule) {
             if (! $this->conditionEvaluator->passes($rule->conditions, $rule->condition_logic, $selections)) {
                 continue;
             }
@@ -73,54 +123,177 @@ class BomGeneratorService
                     continue;
                 }
 
-                $componentId = $item->component_id;
-                $component = $item->component;
+                $component = $item->component_id !== null ? $item->component : null;
+                $childProduct = $component === null ? $item->childProduct : null;
+                $lineName = $component?->name ?? $childProduct?->name ?? "Line #{$item->id}";
 
-                $resolved = $this->quantityResolver->resolve($item, $selections, $attributeIdsByCode);
-
-                if ($resolved['quantity'] <= 0) {
-                    $warnings[] = "{$component->name}: ".($resolved['warning'] ?? 'Resolved quantity is not positive.');
+                if ($component === null && $childProduct === null) {
+                    $warnings[] = "{$lineName}: has no component or sub-assembly.";
 
                     continue;
                 }
 
-                $lineQuantity = $resolved['quantity'];
+                $resolved = $this->quantityResolver->resolve($item, $selections, $attributeIdsByCode);
 
-                if (isset($bom[$componentId])) {
-                    $quantity = (float) $bom[$componentId]['quantity'] + $lineQuantity;
-                    $unitPriceCents = Money::toCents($bom[$componentId]['unit_price']);
+                if ($resolved['quantity'] <= 0) {
+                    $warnings[] = "{$lineName}: ".($resolved['warning'] ?? 'Resolved quantity is not positive.');
 
-                    $bom[$componentId]['quantity'] = $quantity;
-                    $bom[$componentId]['total_price'] = Money::fromCents(Money::mulCents($unitPriceCents, $quantity));
-                } else {
+                    continue;
+                }
+
+                // Strip float noise from the level multiplication only; top-level quantities stay as resolved.
+                $lineQuantity = $multiplier === 1.0 ? $resolved['quantity'] : round($resolved['quantity'] * $multiplier, 6);
+
+                if ($component !== null) {
+                    $key = "component:{$component->id}";
+
+                    if (isset($entries[$key])) {
+                        $quantity = (float) $entries[$key]['row']['quantity'] + $lineQuantity;
+                        $unitPriceCents = Money::toCents($entries[$key]['row']['unit_price']);
+
+                        $entries[$key]['row']['quantity'] = $quantity;
+                        $entries[$key]['row']['total_price'] = Money::fromCents(Money::mulCents($unitPriceCents, $quantity));
+
+                        continue;
+                    }
+
+                    $path = $this->childPath($parentPath, $index++);
                     $unitPriceCents = Money::toCents($component->sales_price);
-                    $totalPriceCents = Money::mulCents($unitPriceCents, $lineQuantity);
 
-                    $bom[$componentId] = [
-                        'item_no' => str_pad($itemNo++, 2, '0', STR_PAD_LEFT),
-                        'component_id' => $componentId,
-                        'part_number' => $component->internal_part_number ?? $component->code,
-                        'sales_part_number' => $component->sales_part_number,
-                        'description' => $component->name,
-                        'long_description' => $component->description,
-                        'type' => $component->category?->name ?? 'Component',
-                        'manufacturer' => $component->manufacturer,
-                        'manufacturer_part_no' => $component->manufacturer_part_number,
+                    $entries[$key] = [
+                        'row' => [
+                            'item_no' => $path,
+                            'component_id' => $component->id,
+                            'part_number' => $component->internal_part_number ?? $component->code,
+                            'sales_part_number' => $component->sales_part_number,
+                            'description' => $component->name,
+                            'long_description' => $component->description,
+                            'type' => $component->category?->name ?? 'Component',
+                            'manufacturer' => $component->manufacturer,
+                            'manufacturer_part_no' => $component->manufacturer_part_number,
+                            'quantity' => $lineQuantity,
+                            'unit' => 'EA',
+                            'unit_price' => Money::fromCents($unitPriceCents),
+                            'cost' => Money::fromCents(Money::toCents($component->cost)),
+                            'total_price' => Money::fromCents(Money::mulCents($unitPriceCents, $lineQuantity)),
+                            'currency' => $component->currency ?? 'EUR',
+                            'is_mandatory' => (bool) $item->is_mandatory,
+                            'lead_time' => null,
+                            'remarks' => null,
+                            'level' => $level,
+                            'path' => $path,
+                            'parent_path' => $parentPath,
+                            'is_assembly' => false,
+                            'product_id' => null,
+                        ],
+                        'children' => [],
+                    ];
+
+                    continue;
+                }
+
+                if (in_array($childProduct->id, $visited, true)) {
+                    throw BomStructureException::cycle([...$visited, $childProduct->id]);
+                }
+
+                $maxDepth = (int) config('configurator.bom.max_depth', 5);
+
+                if ($level + 1 >= $maxDepth) {
+                    throw BomStructureException::maxDepth($maxDepth);
+                }
+
+                $path = $this->childPath($parentPath, $index++);
+                $children = $this->buildRows(
+                    $childProduct,
+                    $this->mapSelectionsForChild($childProduct, $selections),
+                    $lineQuantity,
+                    $level + 1,
+                    $path,
+                    [...$visited, $childProduct->id],
+                    $warnings,
+                );
+
+                $rollupCents = Money::addCents(...array_map(
+                    fn (array $row): int => $row['is_assembly'] ? 0 : Money::toCents($row['total_price']),
+                    $children,
+                ));
+
+                $entries["assembly:{$path}"] = [
+                    'row' => [
+                        'item_no' => $path,
+                        'component_id' => null,
+                        'part_number' => $childProduct->internal_part_number ?? $childProduct->code,
+                        'sales_part_number' => null,
+                        'description' => $childProduct->name,
+                        'long_description' => $childProduct->short_description,
+                        'type' => 'Assembly',
+                        'manufacturer' => $childProduct->manufacturer,
+                        'manufacturer_part_no' => null,
                         'quantity' => $lineQuantity,
                         'unit' => 'EA',
-                        'unit_price' => Money::fromCents($unitPriceCents),
-                        'cost' => Money::fromCents(Money::toCents($component->cost)),
-                        'total_price' => Money::fromCents($totalPriceCents),
-                        'currency' => $component->currency ?? 'EUR',
+                        'unit_price' => Money::fromCents(0),
+                        'cost' => Money::fromCents(0),
+                        'total_price' => Money::fromCents(0),
+                        'currency' => $childProduct->currency ?? 'EUR',
                         'is_mandatory' => (bool) $item->is_mandatory,
                         'lead_time' => null,
                         'remarks' => null,
-                    ];
-                }
+                        'level' => $level,
+                        'path' => $path,
+                        'parent_path' => $parentPath,
+                        'is_assembly' => true,
+                        'product_id' => $childProduct->id,
+                        'rollup_total' => Money::fromCents($rollupCents),
+                    ],
+                    'children' => $children,
+                ];
             }
         }
 
-        return ['items' => array_values($bom), 'warnings' => $warnings];
+        $rows = [];
+
+        foreach ($entries as $entry) {
+            $rows[] = $entry['row'];
+            array_push($rows, ...$entry['children']);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Top-level paths are '01', '02', ...; nested paths append to the parent path ('01.02').
+     */
+    private function childPath(?string $parentPath, int $index): string
+    {
+        $segment = str_pad((string) $index, 2, '0', STR_PAD_LEFT);
+
+        return $parentPath === null ? $segment : "{$parentPath}.{$segment}";
+    }
+
+    /**
+     * Derive a child product's selections: the parent's value for every shared
+     * attribute id, otherwise the child's product_attributes.default_value.
+     *
+     * @param  array<int|string, mixed>  $parentSelections
+     * @return array<int, mixed>
+     */
+    private function mapSelectionsForChild(Product $child, array $parentSelections): array
+    {
+        $child->loadMissing('productAttributes');
+        $selections = [];
+
+        foreach ($child->productAttributes as $productAttribute) {
+            $attributeId = (int) $productAttribute->attribute_id;
+            $parentValue = $parentSelections[$attributeId] ?? null;
+
+            if ($parentValue !== null && $parentValue !== '' && $parentValue !== []) {
+                $selections[$attributeId] = $parentValue;
+            } elseif ($productAttribute->default_value !== null) {
+                $selections[$attributeId] = $productAttribute->default_value;
+            }
+        }
+
+        return $selections;
     }
 
     /**
@@ -151,6 +324,14 @@ class BomGeneratorService
         );
     }
 
+    /**
+     * Validate BOM rows. Assembly rows carry no price by design and are only
+     * checked for part number and description; duplicate part numbers are
+     * reported per BOM level (rows sharing a parent_path).
+     *
+     * @param  list<array<string, mixed>>  $bomItems
+     * @return array{valid: bool, errors: list<string>, warnings: list<string>}
+     */
     public function validate(array $bomItems): array
     {
         $errors = [];
@@ -165,6 +346,9 @@ class BomGeneratorService
             if (empty($item['description'])) {
                 $errors[] = "{$ref}: Missing description.";
             }
+            if ($item['is_assembly'] ?? false) {
+                continue;
+            }
             if ($item['quantity'] <= 0) {
                 $errors[] = "{$ref}: Invalid quantity ({$item['quantity']}).";
             }
@@ -173,11 +357,16 @@ class BomGeneratorService
             }
         }
 
-        // Check duplicates
-        $partNumbers = array_column($bomItems, 'part_number');
-        $duplicates = array_diff_assoc($partNumbers, array_unique($partNumbers));
-        foreach (array_unique($duplicates) as $dup) {
-            $warnings[] = "Duplicate part number detected: {$dup}";
+        // Check duplicates within each BOM level
+        $partNumbersByParent = [];
+        foreach ($bomItems as $item) {
+            $partNumbersByParent[(string) ($item['parent_path'] ?? '')][] = $item['part_number'];
+        }
+        foreach ($partNumbersByParent as $partNumbers) {
+            $duplicates = array_diff_assoc($partNumbers, array_unique($partNumbers));
+            foreach (array_unique($duplicates) as $dup) {
+                $warnings[] = "Duplicate part number detected: {$dup}";
+            }
         }
 
         return [
@@ -190,6 +379,9 @@ class BomGeneratorService
     /**
      * Persist the BOM rows, snapshot, status and revision on the session.
      *
+     * The snapshot keeps every row (assemblies included); configuration_bom_items
+     * receives only leaf rows (component_id !== null) with level-multiplied quantities.
+     *
      * @param  list<array<string, mixed>>  $bomItems
      * @param  list<string>  $warnings  Generation warnings (e.g. omitted computed-quantity lines) merged into validation_errors.warnings.
      */
@@ -199,6 +391,10 @@ class BomGeneratorService
         $session->bomItems()->delete();
 
         foreach ($bomItems as $item) {
+            if ($item['component_id'] === null) {
+                continue;
+            }
+
             $session->bomItems()->create([
                 'component_id' => $item['component_id'],
                 'quantity' => $item['quantity'],

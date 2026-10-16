@@ -98,14 +98,15 @@
 @endif
 
 {{-- BOM Table --}}
-<div class="section-title">Bill of Materials — {{ count($bomItems) }} Items</div>
+<div class="section-title">Bill of Materials — {{ count(array_filter($bomItems, fn ($row) => ! ($row['is_assembly'] ?? false))) }} Items</div>
 
 <table>
     <thead>
         <tr>
             <th style="width:5%">Item</th>
+            <th style="width:4%" class="text-center">Level</th>
             <th style="width:14%">Part Number</th>
-            <th style="width:28%">Description</th>
+            <th style="width:24%">Description</th>
             <th style="width:12%">Type</th>
             <th style="width:14%">Manufacturer</th>
             <th style="width:10%">Mfr Part No.</th>
@@ -121,9 +122,13 @@
         @foreach($bomItems as $item)
         <tr>
             <td class="mono text-center">{{ $item['item_no'] }}</td>
+            <td class="text-center">{{ $item['level'] ?? 0 }}</td>
             <td class="mono" style="font-size:7.5px">{{ $item['part_number'] ?? '—' }}</td>
-            <td>
+            <td style="padding-left: {{ 4 + ($item['level'] ?? 0) * 10 }}px">
                 <strong>{{ $item['description'] }}</strong>
+                @if($item['is_assembly'] ?? false)
+                    <span style="color:#1d4ed8;font-size:7px">[ASSEMBLY]</span>
+                @endif
                 @if($item['long_description'])
                     <br><span style="color:#64748b;font-size:7px">{{ Str::limit($item['long_description'], 80) }}</span>
                 @endif
@@ -143,7 +148,7 @@
     @if($showPricing)
     <tfoot>
         <tr>
-            <td colspan="8" class="text-right">TOTAL ESTIMATED VALUE</td>
+            <td colspan="9" class="text-right">TOTAL ESTIMATED VALUE</td>
             <td colspan="2" class="text-right">
                 {{ number_format(array_sum(array_column($bomItems, 'total_price')), 2) }}
                 {{ $configuration->currency }}

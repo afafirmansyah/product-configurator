@@ -3,6 +3,7 @@
 namespace App\Services\Configurator;
 
 use App\DTOs\ConfigurationResult;
+use App\Exceptions\BomStructureException;
 use App\Models\Component;
 use App\Models\Product;
 use App\Services\Bom\BomGeneratorService;
@@ -35,6 +36,7 @@ class ConfiguratorService
             'configurationRules.actions',
             'bomRules.conditions.attribute',
             'bomRules.items.component.category',
+            'bomRules.items.childProduct',
             'bomRules.items.valueSets.options',
             'bomRules.items.quantityAttribute',
             'compatibilityRules.attribute',
@@ -85,7 +87,17 @@ class ConfiguratorService
         $requiredIds = array_values(array_diff($requiredIds, $ruleEffects['optional_attributes']));
 
         // 5. Generate BOM, then apply rule-driven component additions/removals.
-        $bomResult = $this->bom->generateWithWarnings($product, $selections);
+        //    An invalid sub-assembly structure (cycle / too deep) yields no BOM and
+        //    an error that makes the configuration invalid instead of throwing.
+        $bomErrors = [];
+
+        try {
+            $bomResult = $this->bom->generateWithWarnings($product, $selections);
+        } catch (BomStructureException $exception) {
+            $bomResult = ['items' => [], 'warnings' => []];
+            $bomErrors[] = $exception->getMessage();
+        }
+
         $bomItems = $this->applyComponentEffects($bomResult['items'], $ruleEffects);
 
         // 6. Calculate pricing, applying any rule-driven total override (in cents).
@@ -108,6 +120,14 @@ class ConfiguratorService
         // kept separately so save paths can persist them alongside the BOM snapshot.
         $validation['bom_warnings'] = $bomResult['warnings'];
         $validation['warnings'] = array_merge($validation['warnings'], $bomResult['warnings']);
+
+        // BOM structure errors block saving; kept separately so the generate-BOM path can report them.
+        $validation['bom_errors'] = $bomErrors;
+
+        if ($bomErrors !== []) {
+            $validation['errors'] = array_merge($validation['errors'], $bomErrors);
+            $validation['valid'] = false;
+        }
 
         // 9. Build technical specs from selections
         $techSpecs = $this->buildTechSpecs($product, $selections);
@@ -165,7 +185,8 @@ class ConfiguratorService
 
     /**
      * Apply rule-driven BOM mutations: drop removed components by id, then append
-     * added components as synthetic rows in the rich BOM shape.
+     * added components as synthetic rows in the rich BOM shape. Both only act on
+     * the top level (level 0); sub-assembly contents are left untouched.
      *
      * @param  array<int, array<string, mixed>>  $bomItems
      * @param  array<string, mixed>  $ruleEffects
@@ -178,7 +199,8 @@ class ConfiguratorService
         if (! empty($removedIds)) {
             $bomItems = array_values(array_filter(
                 $bomItems,
-                fn (array $item): bool => ! in_array((int) $item['component_id'], $removedIds, true),
+                fn (array $item): bool => ($item['level'] ?? 0) !== 0
+                    || ! in_array((int) $item['component_id'], $removedIds, true),
             ));
         }
 
@@ -186,7 +208,7 @@ class ConfiguratorService
             return $bomItems;
         }
 
-        $itemNo = count($bomItems) + 1;
+        $itemNo = count(array_filter($bomItems, fn (array $item): bool => ($item['level'] ?? 0) === 0)) + 1;
 
         foreach ($ruleEffects['added_components'] as $added) {
             $component = Component::with('category')->find($added['component_id']);
@@ -198,8 +220,10 @@ class ConfiguratorService
             $quantity = (float) $added['quantity'];
             $unitPriceCents = Money::toCents($component->sales_price);
 
+            $path = str_pad((string) $itemNo++, 2, '0', STR_PAD_LEFT);
+
             $bomItems[] = [
-                'item_no' => str_pad((string) $itemNo++, 2, '0', STR_PAD_LEFT),
+                'item_no' => $path,
                 'component_id' => $component->id,
                 'part_number' => $component->internal_part_number ?? $component->code,
                 'sales_part_number' => $component->sales_part_number,
@@ -217,6 +241,11 @@ class ConfiguratorService
                 'is_mandatory' => false,
                 'lead_time' => null,
                 'remarks' => null,
+                'level' => 0,
+                'path' => $path,
+                'parent_path' => null,
+                'is_assembly' => false,
+                'product_id' => null,
             ];
         }
 

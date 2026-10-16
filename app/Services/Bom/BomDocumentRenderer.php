@@ -68,7 +68,7 @@ class BomDocumentRenderer
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('BOM');
 
-        $headers = ['Item No.', 'Part Number', 'Description', 'Type', 'Manufacturer', 'Mfr Part No.', 'Qty', 'Unit'];
+        $headers = ['Item No.', 'Level', 'Part Number', 'Description', 'Type', 'Manufacturer', 'Mfr Part No.', 'Qty', 'Unit'];
         if ($showPricing) {
             $headers = array_merge($headers, ['Unit Price', 'Total Price', 'Currency']);
         }
@@ -111,9 +111,11 @@ class BomDocumentRenderer
         $row = 4;
         foreach ($bomItems as $item) {
             $col = 1;
+            $level = (int) ($item['level'] ?? 0);
             $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $item['item_no']);
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $level);
             $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $item['part_number']);
-            $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $item['description']);
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, str_repeat('  ', $level).$item['description']);
             $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $item['type']);
             $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $item['manufacturer']);
             $sheet->setCellValue(Coordinate::stringFromColumnIndex($col++).$row, $item['manufacturer_part_no']);
@@ -128,13 +130,16 @@ class BomDocumentRenderer
 
             $bgColor = $row % 2 === 0 ? 'F7F9FC' : 'FFFFFF';
             $sheet->getStyle('A'.$row.':'.Coordinate::stringFromColumnIndex(count($headers)).$row)
-                ->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgColor]]]);
+                ->applyFromArray([
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgColor]],
+                    'font' => ['bold' => (bool) ($item['is_assembly'] ?? false)],
+                ]);
             $row++;
         }
 
         // Totals row
         if ($showPricing && count($bomItems) > 0) {
-            $totalCol = 10; // Total Price column
+            $totalCol = 11; // Total Price column (after the Level column)
             $totalColLetter = Coordinate::stringFromColumnIndex($totalCol);
             $sheet->setCellValue('A'.$row, 'TOTAL');
             $sheet->setCellValue($totalColLetter.$row, array_sum(array_column($bomItems, 'total_price')));
@@ -143,7 +148,7 @@ class BomDocumentRenderer
         }
 
         // Column widths
-        $widths = [8, 20, 40, 18, 22, 20, 8, 8, 12, 12, 10, 20];
+        $widths = [8, 6, 20, 40, 18, 22, 20, 8, 8, 12, 12, 10, 20];
         foreach ($widths as $i => $width) {
             $sheet->getColumnDimensionByColumn($i + 1)->setWidth($width);
         }
@@ -197,11 +202,13 @@ class BomDocumentRenderer
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Summary');
 
-        $totalQty = array_sum(array_column($bomItems, 'quantity'));
-        $totalValue = array_sum(array_column($bomItems, 'total_price'));
+        // Assembly rows only group their children, so counts and sums cover leaf rows.
+        $leafItems = array_values(array_filter($bomItems, fn (array $item): bool => ! ($item['is_assembly'] ?? false)));
+        $totalQty = array_sum(array_column($leafItems, 'quantity'));
+        $totalValue = array_sum(array_column($leafItems, 'total_price'));
 
         $rows = [
-            ['Total BOM Items', count($bomItems)],
+            ['Total BOM Items', count($leafItems)],
             ['Total Quantity', $totalQty],
             ['Estimated Total Value', $totalValue],
             ['Currency', $cfg->product->currency ?? 'EUR'],

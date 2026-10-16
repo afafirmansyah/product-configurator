@@ -8,6 +8,7 @@ use App\Models\BomRule;
 use App\Models\Component;
 use App\Models\Product;
 use App\Services\Bom\BomRuleWriter;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -20,7 +21,7 @@ class BomController extends Controller
 
     public function index(Request $request): View
     {
-        $rules = BomRule::with(['product', 'conditions', 'items.component', 'items.valueSets'])
+        $rules = BomRule::with(['product', 'conditions', 'items.component', 'items.childProduct', 'items.valueSets'])
             ->when($request->product_id, fn ($q) => $q->where('product_id', $request->product_id))
             ->latest()
             ->paginate(20);
@@ -34,8 +35,9 @@ class BomController extends Controller
     {
         $components = Component::where('status', 'active')->orderBy('name')->get();
         $attributes = $product->attributes()->with('options')->get();
+        $childProducts = $this->childProductsFor($product);
 
-        return view('admin.bom.create', compact('product', 'components', 'attributes'));
+        return view('admin.bom.create', compact('product', 'components', 'attributes', 'childProducts'));
     }
 
     public function store(BomRuleRequest $request, Product $product): RedirectResponse
@@ -47,7 +49,7 @@ class BomController extends Controller
 
     public function edit(BomRule $rule): View
     {
-        $rule->load(['product', 'conditions.attribute', 'items.component', 'items.valueSets.options']);
+        $rule->load(['product', 'conditions.attribute', 'items.component', 'items.childProduct', 'items.valueSets.options']);
 
         // Keep components already used by the rule selectable even if they were deactivated.
         $components = Component::where('status', 'active')
@@ -55,8 +57,9 @@ class BomController extends Controller
             ->orderBy('name')
             ->get();
         $attributes = $rule->product->attributes()->with('options')->get();
+        $childProducts = $this->childProductsFor($rule->product);
 
-        return view('admin.bom.edit', compact('rule', 'components', 'attributes'));
+        return view('admin.bom.edit', compact('rule', 'components', 'attributes', 'childProducts'));
     }
 
     public function update(BomRuleRequest $request, BomRule $rule): RedirectResponse
@@ -71,5 +74,18 @@ class BomController extends Controller
         $rule->delete();
 
         return back()->with('success', 'BOM rule deleted.');
+    }
+
+    /**
+     * Configurable products selectable as sub-assemblies of the given product.
+     *
+     * @return Collection<int, Product>
+     */
+    private function childProductsFor(Product $product): Collection
+    {
+        return Product::where('is_configurable', true)
+            ->whereKeyNot($product->id)
+            ->orderBy('name')
+            ->get();
     }
 }

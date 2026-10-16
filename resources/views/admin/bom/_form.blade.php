@@ -1,7 +1,8 @@
 {{--
     Shared BOM rule form.
     Expects: $action (string URL), $method ('POST'|'PUT'), $rule (?BomRule with conditions + items.valueSets.options loaded),
-             $attributes (product attributes with options), $components (selectable components).
+             $attributes (product attributes with options), $components (selectable components),
+             $childProducts (configurable products selectable as sub-assemblies).
 --}}
 @php
     $rule = $rule ?? null;
@@ -30,7 +31,9 @@
             ? $rule->items
                 ->map(
                     fn($item) => [
-                        'component_id' => (string) $item->component_id,
+                        'line_type' => $item->child_product_id ? 'assembly' : 'component',
+                        'component_id' => (string) ($item->component_id ?? ''),
+                        'child_product_id' => (string) ($item->child_product_id ?? ''),
                         'quantity' => (string) $item->quantity,
                         'quantity_mode' => $item->quantity_mode?->value ?? 'fixed',
                         'quantity_attribute_id' => (string) ($item->quantity_attribute_id ?? ''),
@@ -56,7 +59,9 @@
                 ->all()
             : [
                 [
+                    'line_type' => 'component',
                     'component_id' => '',
+                    'child_product_id' => '',
                     'quantity' => '1',
                     'quantity_mode' => 'fixed',
                     'quantity_attribute_id' => '',
@@ -71,7 +76,9 @@
     $initialItems = collect($initialItems)
         ->map(
             fn($item) => [
+                'line_type' => filled($item['child_product_id'] ?? null) ? 'assembly' : 'component',
                 'component_id' => (string) ($item['component_id'] ?? ''),
+                'child_product_id' => (string) ($item['child_product_id'] ?? ''),
                 'quantity' => (string) ($item['quantity'] ?? '1'),
                 'quantity_mode' => (string) ($item['quantity_mode'] ?? '') ?: 'fixed',
                 'quantity_attribute_id' => (string) ($item['quantity_attribute_id'] ?? ''),
@@ -187,7 +194,7 @@
         <div class="flex items-center justify-between mb-2">
             <span class="form-label mb-0">Components to Add *</span>
             <button type="button"
-                @click="items.push({ component_id: '', quantity: '1', quantity_mode: 'fixed', quantity_attribute_id: '', quantity_formula: '', quantity_round_up: false, is_mandatory: true, value_sets: [] })"
+                @click="items.push({ line_type: 'component', component_id: '', child_product_id: '', quantity: '1', quantity_mode: 'fixed', quantity_attribute_id: '', quantity_formula: '', quantity_round_up: false, is_mandatory: true, value_sets: [] })"
                 class="btn btn-ghost btn-sm text-blue-600">
                 <x-ui.icon name="plus" class="w-3.5 h-3.5" />
                 Add Component
@@ -197,26 +204,44 @@
             <template x-for="(item, i) in items" :key="i">
                 <div class="rounded-lg border p-3 space-y-2" style="border-color:#e2e8f0">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                        <select :name="`items[${i}][component_id]`" x-model="item.component_id" required
-                            class="form-select" aria-label="Component">
-                            <option value="">Select component...</option>
-                            @foreach ($components as $comp)
-                                <option value="{{ $comp->id }}">{{ $comp->name }}</option>
-                            @endforeach
+                        <select x-model="item.line_type" class="form-select" aria-label="Line type">
+                            <option value="component">Component</option>
+                            <option value="assembly">Sub-assembly</option>
                         </select>
+                        <template x-if="item.line_type === 'component'">
+                            <select :name="`items[${i}][component_id]`" x-model="item.component_id" required
+                                class="form-select" aria-label="Component">
+                                <option value="">Select component...</option>
+                                @foreach ($components as $comp)
+                                    <option value="{{ $comp->id }}">{{ $comp->name }}</option>
+                                @endforeach
+                            </select>
+                        </template>
+                        <template x-if="item.line_type === 'assembly'">
+                            <select :name="`items[${i}][child_product_id]`" x-model="item.child_product_id" required
+                                class="form-select" aria-label="Sub-assembly product">
+                                <option value="">Select configurable product...</option>
+                                @foreach ($childProducts as $childProduct)
+                                    <option value="{{ $childProduct->id }}">{{ $childProduct->name }}</option>
+                                @endforeach
+                            </select>
+                        </template>
                         <input type="number" :name="`items[${i}][quantity]`" x-model="item.quantity" min="0.01"
                             step="0.01" required class="form-input" placeholder="Qty" aria-label="Quantity">
-                        <div class="flex items-center gap-2">
-                            <label class="flex items-center gap-1.5 text-sm text-slate-600">
-                                <input type="checkbox" :name="`items[${i}][is_mandatory]`" value="1"
-                                    x-model="item.is_mandatory" class="w-3.5 h-3.5 rounded">
-                                Mandatory
-                            </label>
-                            <button type="button" @click="items.splice(i,1)" class="btn btn-ghost btn-sm ml-auto"
-                                aria-label="Remove component">
-                                <x-ui.icon name="x" class="w-3.5 h-3.5 text-red-400" />
-                            </button>
-                        </div>
+                    </div>
+                    <p x-show="item.line_type === 'assembly'" class="text-xs text-slate-400">The product's BOM is
+                        expanded as a nested sub-assembly using this product's selections for shared attributes;
+                        its quantities are multiplied by Qty.</p>
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-1.5 text-sm text-slate-600">
+                            <input type="checkbox" :name="`items[${i}][is_mandatory]`" value="1"
+                                x-model="item.is_mandatory" class="w-3.5 h-3.5 rounded">
+                            Mandatory
+                        </label>
+                        <button type="button" @click="items.splice(i,1)" class="btn btn-ghost btn-sm ml-auto"
+                            aria-label="Remove line">
+                            <x-ui.icon name="x" class="w-3.5 h-3.5 text-red-400" />
+                        </button>
                     </div>
 
                     {{-- Quantity mode --}}

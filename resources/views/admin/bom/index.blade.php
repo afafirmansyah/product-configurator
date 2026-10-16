@@ -72,7 +72,10 @@
                         <div class="space-y-0.5">
                             @foreach($rule->items->take(3) as $item)
                                 <div class="text-xs text-slate-600">
-                                    {{ $item->quantity }}× {{ $item->component->name }}
+                                    {{ $item->quantity }}× {{ $item->component?->name ?? $item->childProduct?->name ?? '—' }}
+                                    @if($item->child_product_id)
+                                        <x-ui.badge color="blue">Assembly</x-ui.badge>
+                                    @endif
                                     @if($item->quantity_mode && $item->quantity_mode !== \App\Enums\QuantityMode::Fixed)
                                         <x-ui.badge color="orange">qty: {{ $item->quantity_mode->value }}</x-ui.badge>
                                     @endif

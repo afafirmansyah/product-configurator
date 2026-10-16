@@ -131,6 +131,12 @@ class WorkspaceController extends Controller
 
         // Persist the same rule-aware BOM (incl. add/remove component effects) as the configurator save path.
         $result = $this->configuratorService->evaluate($configuration->product, $selections);
+
+        // An invalid sub-assembly structure (cycle / too deep) must not overwrite the stored BOM.
+        if (! empty($result->validation['bom_errors'])) {
+            return back()->with('error', implode(' ', $result->validation['bom_errors']));
+        }
+
         $this->bomService->saveToSession($configuration, $result->bom, $result->validation['bom_warnings'] ?? []);
 
         return back()->with('success', 'BOM generated successfully. Revision '.$configuration->fresh()->bom_revision.'.');
