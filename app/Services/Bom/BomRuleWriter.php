@@ -14,14 +14,20 @@ use Illuminate\Support\Str;
  *
  * Both create() and update() run inside a single transaction. update() replaces
  * the rule's conditions and items wholesale (delete + recreate) so the stored
- * rule always mirrors the submitted form.
+ * rule always mirrors the submitted form. Item value sets cascade with their
+ * item and are rewritten from the submitted data.
  *
  * @phpstan-type BomRuleData array{
  *     name: string,
  *     condition_logic: string,
  *     is_active?: bool|int|string|null,
  *     conditions?: list<array{attribute_id?: int|string|null, operator?: string|null, value?: string|null}>,
- *     items: list<array{component_id: int|string, quantity: int|float|string, is_mandatory?: bool|int|string|null}>
+ *     items: list<array{
+ *         component_id: int|string,
+ *         quantity: int|float|string,
+ *         is_mandatory?: bool|int|string|null,
+ *         value_sets?: list<array{name?: string|null, option_ids: list<int|string>}>|null
+ *     }>
  * }
  */
 class BomRuleWriter
@@ -98,12 +104,19 @@ class BomRuleWriter
         }
 
         foreach ($data['items'] as $item) {
-            BomRuleItem::create([
+            $ruleItem = BomRuleItem::create([
                 'bom_rule_id' => $rule->id,
                 'component_id' => $item['component_id'],
                 'quantity' => $item['quantity'],
                 'is_mandatory' => filter_var($item['is_mandatory'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ]);
+
+            foreach ($item['value_sets'] ?? [] as $valueSet) {
+                $ruleItem->valueSets()
+                    ->create(['name' => filled($valueSet['name'] ?? null) ? $valueSet['name'] : null])
+                    ->options()
+                    ->attach(array_values(array_unique(array_map('intval', $valueSet['option_ids']))));
+            }
         }
     }
 }

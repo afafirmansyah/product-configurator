@@ -71,7 +71,12 @@
                     <td>
                         <div class="space-y-0.5">
                             @foreach($rule->items->take(3) as $item)
-                                <div class="text-xs text-slate-600">{{ $item->quantity }}× {{ $item->component->name }}</div>
+                                <div class="text-xs text-slate-600">
+                                    {{ $item->quantity }}× {{ $item->component->name }}
+                                    @if($item->valueSets->isNotEmpty())
+                                        <x-ui.badge color="purple">{{ $item->valueSets->count() }} value set(s)</x-ui.badge>
+                                    @endif
+                                </div>
                             @endforeach
                             @if($rule->items->count() > 3)
                                 <div class="text-xs text-slate-400">+{{ $rule->items->count() - 3 }} more</div>

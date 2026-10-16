@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BomRuleItem extends Model
 {
@@ -25,5 +26,13 @@ class BomRuleItem extends Model
     public function component(): BelongsTo
     {
         return $this->belongsTo(Component::class);
+    }
+
+    /**
+     * Alternative attribute-value sets gating this line; none means always included.
+     */
+    public function valueSets(): HasMany
+    {
+        return $this->hasMany(BomRuleItemValueSet::class);
     }
 }

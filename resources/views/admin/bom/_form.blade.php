@@ -1,48 +1,95 @@
 {{--
     Shared BOM rule form.
-    Expects: $action (string URL), $method ('POST'|'PUT'), $rule (?BomRule with conditions + items loaded),
-             $attributes (product attributes), $components (selectable components).
+    Expects: $action (string URL), $method ('POST'|'PUT'), $rule (?BomRule with conditions + items.valueSets.options loaded),
+             $attributes (product attributes with options), $components (selectable components).
 --}}
 @php
     $rule = $rule ?? null;
 
-    $initialConditions = old('conditions', $rule
-        ? $rule->conditions->map(fn ($condition) => [
-            'attribute_id' => (string) $condition->attribute_id,
-            'operator' => $condition->operator,
-            'value' => $condition->value,
-        ])->values()->all()
-        : [['attribute_id' => '', 'operator' => 'equals', 'value' => '']]);
+    $initialConditions = old(
+        'conditions',
+        $rule
+            ? $rule->conditions
+                ->map(
+                    fn($condition) => [
+                        'attribute_id' => (string) $condition->attribute_id,
+                        'operator' => $condition->operator,
+                        'value' => $condition->value,
+                    ],
+                )
+                ->values()
+                ->all()
+            : [['attribute_id' => '', 'operator' => 'equals', 'value' => '']],
+    );
 
-    $initialItems = old('items', $rule
-        ? $rule->items->map(fn ($item) => [
-            'component_id' => (string) $item->component_id,
-            'quantity' => (string) $item->quantity,
-            'is_mandatory' => (bool) $item->is_mandatory,
-        ])->values()->all()
-        : [['component_id' => '', 'quantity' => '1', 'is_mandatory' => true]]);
+    $initialItems = old(
+        'items',
+        $rule
+            ? $rule->items
+                ->map(
+                    fn($item) => [
+                        'component_id' => (string) $item->component_id,
+                        'quantity' => (string) $item->quantity,
+                        'is_mandatory' => (bool) $item->is_mandatory,
+                        'value_sets' => $item->valueSets
+                            ->map(
+                                fn($valueSet) => [
+                                    'name' => (string) $valueSet->name,
+                                    'option_ids' => $valueSet->options
+                                        ->pluck('id')
+                                        ->map(fn($id) => (string) $id)
+                                        ->values()
+                                        ->all(),
+                                ],
+                            )
+                            ->values()
+                            ->all(),
+                    ],
+                )
+                ->values()
+                ->all()
+            : [['component_id' => '', 'quantity' => '1', 'is_mandatory' => true, 'value_sets' => []]],
+    );
 
-    $initialItems = collect($initialItems)->map(fn ($item) => [
-        'component_id' => (string) ($item['component_id'] ?? ''),
-        'quantity' => (string) ($item['quantity'] ?? '1'),
-        'is_mandatory' => filter_var($item['is_mandatory'] ?? false, FILTER_VALIDATE_BOOLEAN),
-    ])->values()->all();
+    $initialItems = collect($initialItems)
+        ->map(
+            fn($item) => [
+                'component_id' => (string) ($item['component_id'] ?? ''),
+                'quantity' => (string) ($item['quantity'] ?? '1'),
+                'is_mandatory' => filter_var($item['is_mandatory'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'value_sets' => collect(is_array($item['value_sets'] ?? null) ? $item['value_sets'] : [])
+                    ->map(
+                        fn($valueSet) => [
+                            'name' => (string) ($valueSet['name'] ?? ''),
+                            'option_ids' => collect(
+                                is_array($valueSet['option_ids'] ?? null) ? $valueSet['option_ids'] : [],
+                            )
+                                ->map(fn($id) => (string) $id)
+                                ->values()
+                                ->all(),
+                        ],
+                    )
+                    ->values()
+                    ->all(),
+            ],
+        )
+        ->values()
+        ->all();
 
     $isActive = filter_var(old('is_active', $rule?->is_active ?? true), FILTER_VALIDATE_BOOLEAN);
     $conditionLogic = old('condition_logic', $rule?->condition_logic ?? 'AND');
 @endphp
 
-<form method="POST" action="{{ $action }}" class="space-y-5"
-    x-data="{ conditions: @js(array_values($initialConditions)), items: @js($initialItems) }">
+<form method="POST" action="{{ $action }}" class="space-y-5" x-data="{ conditions: @js(array_values($initialConditions)), items: @js($initialItems) }">
     @csrf
-    @if(strtoupper($method) !== 'POST')
+    @if (strtoupper($method) !== 'POST')
         @method($method)
     @endif
 
-    @if($errors->any())
+    @if ($errors->any())
         <x-ui.alert type="danger">
             <ul class="list-disc pl-4 space-y-0.5">
-                @foreach($errors->all() as $error)
+                @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
@@ -65,7 +112,8 @@
         <div class="flex items-end">
             <label class="flex items-center gap-2 text-sm text-slate-700 pb-2">
                 <input type="hidden" name="is_active" value="0">
-                <input type="checkbox" name="is_active" value="1" @checked($isActive) class="w-4 h-4 rounded" style="accent-color:#2563eb">
+                <input type="checkbox" name="is_active" value="1" @checked($isActive)
+                    class="w-4 h-4 rounded" style="accent-color:#2563eb">
                 Active
             </label>
         </div>
@@ -74,22 +122,26 @@
     {{-- Conditions --}}
     <div>
         <div class="flex items-center justify-between mb-2">
-            <span class="form-label mb-0">Conditions <span class="text-slate-400 font-normal">(leave empty to always apply)</span></span>
-            <button type="button" @click="conditions.push({ attribute_id: '', operator: 'equals', value: '' })" class="btn btn-ghost btn-sm text-blue-600">
-                <x-ui.icon name="plus" class="w-3.5 h-3.5"/>
+            <span class="form-label mb-0">Conditions <span class="text-slate-400 font-normal">(leave empty to always
+                    apply)</span></span>
+            <button type="button" @click="conditions.push({ attribute_id: '', operator: 'equals', value: '' })"
+                class="btn btn-ghost btn-sm text-blue-600">
+                <x-ui.icon name="plus" class="w-3.5 h-3.5" />
                 Add
             </button>
         </div>
         <div class="space-y-2">
             <template x-for="(cond, i) in conditions" :key="i">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                    <select :name="`conditions[${i}][attribute_id]`" x-model="cond.attribute_id" class="form-select" aria-label="Condition attribute">
+                    <select :name="`conditions[${i}][attribute_id]`" x-model="cond.attribute_id" class="form-select"
+                        aria-label="Condition attribute">
                         <option value="">Select attribute...</option>
-                        @foreach($attributes as $attr)
+                        @foreach ($attributes as $attr)
                             <option value="{{ $attr->id }}">{{ $attr->name }}</option>
                         @endforeach
                     </select>
-                    <select :name="`conditions[${i}][operator]`" x-model="cond.operator" class="form-select" aria-label="Condition operator">
+                    <select :name="`conditions[${i}][operator]`" x-model="cond.operator" class="form-select"
+                        aria-label="Condition operator">
                         <option value="equals">equals</option>
                         <option value="not_equals">not equals</option>
                         <option value="greater_than">greater than</option>
@@ -97,9 +149,11 @@
                         <option value="in">is one of</option>
                     </select>
                     <div class="flex gap-1">
-                        <input type="text" :name="`conditions[${i}][value]`" x-model="cond.value" class="form-input" placeholder="Value" aria-label="Condition value">
-                        <button type="button" @click="conditions.splice(i,1)" class="btn btn-ghost btn-sm flex-shrink-0" aria-label="Remove condition">
-                            <x-ui.icon name="x" class="w-3.5 h-3.5 text-red-400"/>
+                        <input type="text" :name="`conditions[${i}][value]`" x-model="cond.value" class="form-input"
+                            placeholder="Value" aria-label="Condition value">
+                        <button type="button" @click="conditions.splice(i,1)"
+                            class="btn btn-ghost btn-sm flex-shrink-0" aria-label="Remove condition">
+                            <x-ui.icon name="x" class="w-3.5 h-3.5 text-red-400" />
                         </button>
                     </div>
                 </div>
@@ -111,29 +165,76 @@
     <div>
         <div class="flex items-center justify-between mb-2">
             <span class="form-label mb-0">Components to Add *</span>
-            <button type="button" @click="items.push({ component_id: '', quantity: '1', is_mandatory: true })" class="btn btn-ghost btn-sm text-blue-600">
-                <x-ui.icon name="plus" class="w-3.5 h-3.5"/>
+            <button type="button"
+                @click="items.push({ component_id: '', quantity: '1', is_mandatory: true, value_sets: [] })"
+                class="btn btn-ghost btn-sm text-blue-600">
+                <x-ui.icon name="plus" class="w-3.5 h-3.5" />
                 Add Component
             </button>
         </div>
-        <div class="space-y-2">
+        <div class="space-y-3">
             <template x-for="(item, i) in items" :key="i">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                    <select :name="`items[${i}][component_id]`" x-model="item.component_id" required class="form-select" aria-label="Component">
-                        <option value="">Select component...</option>
-                        @foreach($components as $comp)
-                            <option value="{{ $comp->id }}">{{ $comp->name }}</option>
-                        @endforeach
-                    </select>
-                    <input type="number" :name="`items[${i}][quantity]`" x-model="item.quantity" min="0.01" step="0.01" required class="form-input" placeholder="Qty" aria-label="Quantity">
-                    <div class="flex items-center gap-2">
-                        <label class="flex items-center gap-1.5 text-sm text-slate-600">
-                            <input type="checkbox" :name="`items[${i}][is_mandatory]`" value="1" x-model="item.is_mandatory" class="w-3.5 h-3.5 rounded">
-                            Mandatory
-                        </label>
-                        <button type="button" @click="items.splice(i,1)" class="btn btn-ghost btn-sm ml-auto" aria-label="Remove component">
-                            <x-ui.icon name="x" class="w-3.5 h-3.5 text-red-400"/>
-                        </button>
+                <div class="rounded-lg border p-3 space-y-2" style="border-color:#e2e8f0">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                        <select :name="`items[${i}][component_id]`" x-model="item.component_id" required
+                            class="form-select" aria-label="Component">
+                            <option value="">Select component...</option>
+                            @foreach ($components as $comp)
+                                <option value="{{ $comp->id }}">{{ $comp->name }}</option>
+                            @endforeach
+                        </select>
+                        <input type="number" :name="`items[${i}][quantity]`" x-model="item.quantity" min="0.01"
+                            step="0.01" required class="form-input" placeholder="Qty" aria-label="Quantity">
+                        <div class="flex items-center gap-2">
+                            <label class="flex items-center gap-1.5 text-sm text-slate-600">
+                                <input type="checkbox" :name="`items[${i}][is_mandatory]`" value="1"
+                                    x-model="item.is_mandatory" class="w-3.5 h-3.5 rounded">
+                                Mandatory
+                            </label>
+                            <button type="button" @click="items.splice(i,1)" class="btn btn-ghost btn-sm ml-auto"
+                                aria-label="Remove component">
+                                <x-ui.icon name="x" class="w-3.5 h-3.5 text-red-400" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Attribute value sets --}}
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-medium text-slate-600">Attribute value sets</span>
+                            <button type="button" @click="item.value_sets.push({ name: '', option_ids: [] })"
+                                class="btn btn-ghost btn-sm text-blue-600">
+                                <x-ui.icon name="plus" class="w-3.5 h-3.5" />
+                                Add Set
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-400">Included if ALL values of ANY set are selected; no sets =
+                            always included.</p>
+                        <template x-for="(valueSet, j) in item.value_sets" :key="j">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-start">
+                                <input type="text" :name="`items[${i}][value_sets][${j}][name]`"
+                                    x-model="valueSet.name" maxlength="255" class="form-input"
+                                    placeholder="Set name (optional)" aria-label="Value set name">
+                                <select multiple :name="`items[${i}][value_sets][${j}][option_ids][]`"
+                                    x-model="valueSet.option_ids" class="form-select sm:col-span-2 min-h-24"
+                                    aria-label="Value set options">
+                                    @foreach ($attributes as $attr)
+                                        <optgroup label="{{ $attr->name }}">
+                                            @foreach ($attr->options as $option)
+                                                <option value="{{ $option->id }}">{{ $option->name }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endforeach
+                                </select>
+                                <div class="sm:col-span-3 flex justify-end">
+                                    <button type="button" @click="item.value_sets.splice(j,1)"
+                                        class="btn btn-ghost btn-sm text-red-500" aria-label="Remove value set">
+                                        <x-ui.icon name="x" class="w-3.5 h-3.5" />
+                                        Remove Set
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </template>

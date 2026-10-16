@@ -35,6 +35,7 @@ class ConfiguratorService
             'configurationRules.actions',
             'bomRules.conditions.attribute',
             'bomRules.items.component.category',
+            'bomRules.items.valueSets.options',
             'compatibilityRules.attribute',
             'compatibilityRules.option',
             'compatibilityRules.targetAttribute.options',

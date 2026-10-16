@@ -2,6 +2,9 @@
 
 namespace App\Services\Bom;
 
+use App\Models\AttributeOption;
+use App\Models\BomRuleItem;
+use App\Models\BomRuleItemValueSet;
 use App\Models\ConfigurationSession;
 use App\Models\Product;
 use App\Services\Rules\ConditionEvaluator;
@@ -11,6 +14,7 @@ class BomGeneratorService
 {
     public function __construct(
         private readonly ConditionEvaluator $conditionEvaluator,
+        private readonly SelectionValues $selectionValues,
     ) {}
 
     public function generate(Product $product, array $selections): array
@@ -18,7 +22,11 @@ class BomGeneratorService
         // Consume the eager-loaded relation when ConfiguratorService provided it;
         // fall back to a constrained load (the bomRules relation already filters
         // is_active and orders by sort_order) only when used standalone.
-        $product->loadMissing(['bomRules.conditions.attribute', 'bomRules.items.component.category']);
+        $product->loadMissing([
+            'bomRules.conditions.attribute',
+            'bomRules.items.component.category',
+            'bomRules.items.valueSets.options',
+        ]);
         $rules = $product->bomRules;
 
         $bom = [];
@@ -30,6 +38,10 @@ class BomGeneratorService
             }
 
             foreach ($rule->items as $item) {
+                if (! $this->itemMatchesValueSets($item, $selections)) {
+                    continue;
+                }
+
                 $componentId = $item->component_id;
                 $component = $item->component;
 
@@ -68,6 +80,34 @@ class BomGeneratorService
         }
 
         return array_values($bom);
+    }
+
+    /**
+     * Decide whether a line of a passing rule applies to the selections.
+     *
+     * Configuration-set semantics: a line without value sets always applies.
+     * Otherwise it applies when ANY of its sets matches, and a set matches when
+     * ALL of its options are selected on their attributes. A set left without
+     * options (e.g. every option was soft-deleted) never matches.
+     *
+     * @param  array<int|string, mixed>  $selections
+     */
+    private function itemMatchesValueSets(BomRuleItem $item, array $selections): bool
+    {
+        if ($item->valueSets->isEmpty()) {
+            return true;
+        }
+
+        return $item->valueSets->contains(
+            fn (BomRuleItemValueSet $valueSet): bool => $valueSet->options->isNotEmpty()
+                && $valueSet->options->every(
+                    fn (AttributeOption $option): bool => in_array(
+                        (string) $option->id,
+                        $this->selectionValues->selectedOptionIds($selections[$option->attribute_id] ?? null),
+                        true,
+                    ),
+                ),
+        );
     }
 
     public function validate(array $bomItems): array

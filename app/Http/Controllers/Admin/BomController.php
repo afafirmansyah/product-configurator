@@ -20,7 +20,7 @@ class BomController extends Controller
 
     public function index(Request $request): View
     {
-        $rules = BomRule::with(['product', 'conditions', 'items.component'])
+        $rules = BomRule::with(['product', 'conditions', 'items.component', 'items.valueSets'])
             ->when($request->product_id, fn ($q) => $q->where('product_id', $request->product_id))
             ->latest()
             ->paginate(20);
@@ -33,7 +33,7 @@ class BomController extends Controller
     public function create(Product $product): View
     {
         $components = Component::where('status', 'active')->orderBy('name')->get();
-        $attributes = $product->attributes()->get();
+        $attributes = $product->attributes()->with('options')->get();
 
         return view('admin.bom.create', compact('product', 'components', 'attributes'));
     }
@@ -47,14 +47,14 @@ class BomController extends Controller
 
     public function edit(BomRule $rule): View
     {
-        $rule->load(['product', 'conditions.attribute', 'items.component']);
+        $rule->load(['product', 'conditions.attribute', 'items.component', 'items.valueSets.options']);
 
         // Keep components already used by the rule selectable even if they were deactivated.
         $components = Component::where('status', 'active')
             ->orWhereIn('id', $rule->items->pluck('component_id'))
             ->orderBy('name')
             ->get();
-        $attributes = $rule->product->attributes()->get();
+        $attributes = $rule->product->attributes()->with('options')->get();
 
         return view('admin.bom.edit', compact('rule', 'components', 'attributes'));
     }
